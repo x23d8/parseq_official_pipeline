@@ -1,0 +1,7 @@
+plate_type,source_name,samples,exact_acc,cer,char_acc
+blue,icpr_color_filtered,1,1.0,0.0,1.0
+ngoaigiao,ngoaigiao,5,1.0,0.0,1.0
+normal,vietnam_normal,552,0.9347826086956522,0.010232359837987636,0.9897676401620124
+other,icpr_color_filtered,355,0.971830985915493,0.004021447721179625,0.9959785522788204
+quandoi,quandoi,38,0.868421052631579,0.022222222222222223,0.9777777777777777
+yellow,icpr_color_filtered,12,0.75,0.03125,0.96875

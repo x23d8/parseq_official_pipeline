@@ -1,0 +1,390 @@
+{
+  "config": {
+    "data_root": "d:\\NEO\\LPR\\ocr_dataset_rescued_bbox_new",
+    "dataset_sources": [
+      {
+        "name": "vietnam_normal",
+        "path": "d:\\NEO\\LPR\\ocr_dataset_rescued_bbox_new",
+        "format": "prepared_csv",
+        "plate_type": "normal"
+      },
+      {
+        "name": "icpr_color_filtered",
+        "path": "d:\\NEO\\LPR\\baseline_icpr_2026\\color_filtered",
+        "format": "color_filtered_labels_txt"
+      },
+      {
+        "name": "quandoi",
+        "path": "d:\\NEO\\collect\\update_label\\labled_quandoi",
+        "format": "collected_review_csv",
+        "plate_type": "quandoi"
+      },
+      {
+        "name": "ngoaigiao",
+        "path": "d:\\NEO\\collect\\update_label\\label_ngoaigiao",
+        "format": "collected_review_csv",
+        "plate_type": "ngoaigiao"
+      }
+    ],
+    "output_dir": "d:\\NEO\\LPR\\model\\parseq_official_anpr_multitype_refine",
+    "experiment": "parseq",
+    "pretrained": true,
+    "decode_ar": true,
+    "refine_iters": 1,
+    "charset_test": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "img_size": [
+      32,
+      128
+    ],
+    "max_label_length": 12,
+    "preprocess": true,
+    "augment": true,
+    "batch_size": 16,
+    "num_workers": 0,
+    "epochs": 30,
+    "lr": 1e-05,
+    "weight_decay": 0.0001,
+    "grad_clip": 20.0,
+    "seed": 42,
+    "amp": true,
+    "split_val_ratio": 0.1,
+    "split_test_ratio": 0.1,
+    "exclude_rejected_labels": true,
+    "balance_plate_types": true
+  },
+  "best_checkpoint": "d:\\NEO\\LPR\\model\\parseq_official_anpr_multitype_refine\\best_official_parseq_anpr.pt",
+  "best_epoch": 29,
+  "best_val_metrics": {
+    "split": "val",
+    "samples": 948,
+    "exact_acc": 0.959915611814346,
+    "cer": 0.005532503457814661,
+    "char_acc": 0.9944674965421854,
+    "refine_iters": 1,
+    "decode_ar": true
+  },
+  "dataset_summary": [
+    {
+      "split": "test",
+      "plate_type": "blue",
+      "source_name": "icpr_color_filtered",
+      "samples": 1
+    },
+    {
+      "split": "test",
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 5
+    },
+    {
+      "split": "test",
+      "plate_type": "normal",
+      "source_name": "vietnam_normal",
+      "samples": 552
+    },
+    {
+      "split": "test",
+      "plate_type": "other",
+      "source_name": "icpr_color_filtered",
+      "samples": 355
+    },
+    {
+      "split": "test",
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 38
+    },
+    {
+      "split": "test",
+      "plate_type": "yellow",
+      "source_name": "icpr_color_filtered",
+      "samples": 12
+    },
+    {
+      "split": "train",
+      "plate_type": "blue",
+      "source_name": "icpr_color_filtered",
+      "samples": 1
+    },
+    {
+      "split": "train",
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 49
+    },
+    {
+      "split": "train",
+      "plate_type": "normal",
+      "source_name": "vietnam_normal",
+      "samples": 2574
+    },
+    {
+      "split": "train",
+      "plate_type": "other",
+      "source_name": "icpr_color_filtered",
+      "samples": 2840
+    },
+    {
+      "split": "train",
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 279
+    },
+    {
+      "split": "train",
+      "plate_type": "yellow",
+      "source_name": "icpr_color_filtered",
+      "samples": 101
+    },
+    {
+      "split": "val",
+      "plate_type": "blue",
+      "source_name": "icpr_color_filtered",
+      "samples": 1
+    },
+    {
+      "split": "val",
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 3
+    },
+    {
+      "split": "val",
+      "plate_type": "normal",
+      "source_name": "vietnam_normal",
+      "samples": 551
+    },
+    {
+      "split": "val",
+      "plate_type": "other",
+      "source_name": "icpr_color_filtered",
+      "samples": 355
+    },
+    {
+      "split": "val",
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 26
+    },
+    {
+      "split": "val",
+      "plate_type": "yellow",
+      "source_name": "icpr_color_filtered",
+      "samples": 12
+    }
+  ],
+  "baseline_refinement_sweep_val": [
+    {
+      "split": "val_before_finetune_refine_0",
+      "samples": 948,
+      "exact_acc": 0.22362869198312235,
+      "cer": 0.3968313843832516,
+      "char_acc": 0.6031686156167484,
+      "refine_iters": 0,
+      "decode_ar": true
+    },
+    {
+      "split": "val_before_finetune_refine_1",
+      "samples": 948,
+      "exact_acc": 0.22151898734177214,
+      "cer": 0.39746007795800326,
+      "char_acc": 0.6025399220419967,
+      "refine_iters": 1,
+      "decode_ar": true
+    },
+    {
+      "split": "val_before_finetune_refine_2",
+      "samples": 948,
+      "exact_acc": 0.22151898734177214,
+      "cer": 0.3978372941028543,
+      "char_acc": 0.6021627058971457,
+      "refine_iters": 2,
+      "decode_ar": true
+    },
+    {
+      "split": "val_before_finetune_refine_3",
+      "samples": 948,
+      "exact_acc": 0.22151898734177214,
+      "cer": 0.3978372941028543,
+      "char_acc": 0.6021627058971457,
+      "refine_iters": 3,
+      "decode_ar": true
+    }
+  ],
+  "after_finetune_refinement_sweep_val": [
+    {
+      "split": "val_after_finetune_refine_0",
+      "samples": 948,
+      "exact_acc": 0.9588607594936709,
+      "cer": 0.006035458317615994,
+      "char_acc": 0.993964541682384,
+      "refine_iters": 0,
+      "decode_ar": true
+    },
+    {
+      "split": "val_after_finetune_refine_1",
+      "samples": 948,
+      "exact_acc": 0.959915611814346,
+      "cer": 0.005532503457814661,
+      "char_acc": 0.9944674965421854,
+      "refine_iters": 1,
+      "decode_ar": true
+    },
+    {
+      "split": "val_after_finetune_refine_2",
+      "samples": 948,
+      "exact_acc": 0.959915611814346,
+      "cer": 0.005658242172764994,
+      "char_acc": 0.994341757827235,
+      "refine_iters": 2,
+      "decode_ar": true
+    },
+    {
+      "split": "val_after_finetune_refine_3",
+      "samples": 948,
+      "exact_acc": 0.959915611814346,
+      "cer": 0.006035458317615994,
+      "char_acc": 0.993964541682384,
+      "refine_iters": 3,
+      "decode_ar": true
+    }
+  ],
+  "after_finetune_refinement_sweep_test": [
+    {
+      "split": "test_after_finetune_refine_0",
+      "samples": 963,
+      "exact_acc": 0.9428868120456906,
+      "cer": 0.008696732513355697,
+      "char_acc": 0.9913032674866443,
+      "refine_iters": 0,
+      "decode_ar": true
+    },
+    {
+      "split": "test_after_finetune_refine_1",
+      "samples": 963,
+      "exact_acc": 0.9439252336448598,
+      "cer": 0.008448254441545533,
+      "char_acc": 0.9915517455584545,
+      "refine_iters": 1,
+      "decode_ar": true
+    },
+    {
+      "split": "test_after_finetune_refine_2",
+      "samples": 963,
+      "exact_acc": 0.944963655244029,
+      "cer": 0.008324015405640452,
+      "char_acc": 0.9916759845943596,
+      "refine_iters": 2,
+      "decode_ar": true
+    },
+    {
+      "split": "test_after_finetune_refine_3",
+      "samples": 963,
+      "exact_acc": 0.944963655244029,
+      "cer": 0.008324015405640452,
+      "char_acc": 0.9916759845943596,
+      "refine_iters": 3,
+      "decode_ar": true
+    }
+  ],
+  "val_by_plate_type": [
+    {
+      "plate_type": "blue",
+      "source_name": "icpr_color_filtered",
+      "samples": 1,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 3,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "normal",
+      "source_name": "vietnam_normal",
+      "samples": 551,
+      "exact_acc": 0.9673321234119783,
+      "cer": 0.0040529010238907846,
+      "char_acc": 0.9959470989761092
+    },
+    {
+      "plate_type": "other",
+      "source_name": "icpr_color_filtered",
+      "samples": 355,
+      "exact_acc": 0.9605633802816902,
+      "cer": 0.005370929842228936,
+      "char_acc": 0.994629070157771
+    },
+    {
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 26,
+      "exact_acc": 0.8461538461538461,
+      "cer": 0.02564102564102564,
+      "char_acc": 0.9743589743589743
+    },
+    {
+      "plate_type": "yellow",
+      "source_name": "icpr_color_filtered",
+      "samples": 12,
+      "exact_acc": 0.8333333333333334,
+      "cer": 0.052083333333333336,
+      "char_acc": 0.9479166666666666
+    }
+  ],
+  "test_by_plate_type": [
+    {
+      "plate_type": "blue",
+      "source_name": "icpr_color_filtered",
+      "samples": 1,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 5,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "normal",
+      "source_name": "vietnam_normal",
+      "samples": 552,
+      "exact_acc": 0.9347826086956522,
+      "cer": 0.010232359837987636,
+      "char_acc": 0.9897676401620124
+    },
+    {
+      "plate_type": "other",
+      "source_name": "icpr_color_filtered",
+      "samples": 355,
+      "exact_acc": 0.971830985915493,
+      "cer": 0.004021447721179625,
+      "char_acc": 0.9959785522788204
+    },
+    {
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 38,
+      "exact_acc": 0.868421052631579,
+      "cer": 0.022222222222222223,
+      "char_acc": 0.9777777777777777
+    },
+    {
+      "plate_type": "yellow",
+      "source_name": "icpr_color_filtered",
+      "samples": 12,
+      "exact_acc": 0.75,
+      "cer": 0.03125,
+      "char_acc": 0.96875
+    }
+  ]
+}
