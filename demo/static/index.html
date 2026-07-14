@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="PARSeq ANPR preprocessing comparison laboratory" />
+    <title>Glyph / PARSeq Lab</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="noise-layer" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Glyph PARSeq Lab home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>GLYPH<span class="brand-slash">/</span>PARSEQ</span>
+      </a>
+      <div class="topbar-center" aria-label="Application section">
+        <span class="eyebrow">ANPR SYSTEM</span>
+        <strong>PREPROCESSING LAB</strong>
+      </div>
+      <div class="system-state" id="system-state">
+        <span class="pulse-dot"></span>
+        <span id="system-label">Connecting</span>
+        <span class="state-divider"></span>
+        <span id="device-label">--</span>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="intro-strip">
+        <div>
+          <span class="section-index">01</span>
+          <div>
+            <p class="kicker">Inference workspace</p>
+            <h1>Inspect the signal before recognition.</h1>
+          </div>
+        </div>
+        <p>
+          Run the fine-tuned PARSeq model on one measured preprocessing pipeline,
+          or compare every accuracy-improving configuration in a single batch.
+        </p>
+      </section>
+
+      <section class="workspace-grid">
+        <article class="panel method-panel">
+          <header class="panel-header">
+            <div>
+              <span class="panel-number">A</span>
+              <div>
+                <p class="kicker">Ranked by exact match</p>
+                <h2>Select method</h2>
+              </div>
+            </div>
+            <span class="count-badge" id="method-count">0</span>
+          </header>
+          <label class="search-box">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z"/></svg>
+            <input id="method-search" type="search" placeholder="Filter methods" autocomplete="off" />
+          </label>
+          <div class="method-list" id="method-list" role="listbox" aria-label="Preprocessing methods">
+            <div class="skeleton-list" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <footer class="panel-footnote">
+            <span class="legend-dot improved"></span> Improvement on test set
+            <span class="legend-dot reference"></span> Training reference
+          </footer>
+        </article>
+
+        <article class="panel upload-panel">
+          <header class="panel-header">
+            <div>
+              <span class="panel-number">B</span>
+              <div>
+                <p class="kicker">Input specimen</p>
+                <h2>Upload source image</h2>
+              </div>
+            </div>
+            <span class="file-state" id="file-state">No input</span>
+          </header>
+
+          <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Upload a vehicle scene or license plate image">
+            <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden />
+            <div class="drop-empty" id="drop-empty">
+              <div class="scan-icon" aria-hidden="true">
+                <span class="corner tl"></span><span class="corner tr"></span>
+                <span class="corner bl"></span><span class="corner br"></span>
+                <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v4h14v-4"/></svg>
+              </div>
+              <h3>Drop a vehicle or plate image</h3>
+              <p>or click to browse local files</p>
+              <span>PNG / JPG / WEBP / BMP · MAX 10 MB</span>
+            </div>
+            <div class="image-stage is-hidden" id="image-stage">
+              <div class="image-grid" aria-hidden="true"></div>
+              <img id="image-preview" alt="Uploaded license plate preview" />
+              <div class="scan-line" aria-hidden="true"></div>
+              <div class="image-meta">
+                <span id="image-name">specimen.jpg</span>
+                <span id="image-size">0 KB</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detector-control">
+            <label class="toggle-control" for="auto-detect-toggle">
+              <input id="auto-detect-toggle" type="checkbox" checked />
+              <span class="toggle-track"><i></i></span>
+              <span>
+                <strong>Auto-locate plate</strong>
+                <small>Detect and crop before OCR</small>
+              </span>
+            </label>
+            <span class="detector-state" id="detector-state">Checking detector</span>
+          </div>
+
+          <div class="action-bar">
+            <button class="button primary" id="detect-button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 17 12l-9 6.5v-13Z"/></svg>
+              <span>Detect</span>
+            </button>
+            <button class="button secondary" id="compare-button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v16h4M16 4h4v16h-4M9 8h6M9 12h6M9 16h6"/></svg>
+              <span>Compare all</span>
+            </button>
+            <button class="button icon-button" id="reset-button" title="Reset workspace" aria-label="Reset workspace">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.9 7.5A8 8 0 1 1 4 14m.9-6.5V3m0 4.5h4.5"/></svg>
+            </button>
+          </div>
+
+          <div class="run-status" id="run-status" aria-live="polite">
+            <span class="status-code">SYS</span>
+            <span id="run-status-text">Waiting for an input image.</span>
+          </div>
+        </article>
+
+        <aside class="panel detail-panel">
+          <header class="panel-header">
+            <div>
+              <span class="panel-number">C</span>
+              <div>
+                <p class="kicker">Method intelligence</p>
+                <h2>Description</h2>
+              </div>
+            </div>
+            <span class="rank-chip" id="detail-rank">#--</span>
+          </header>
+          <div class="detail-content" id="detail-content">
+            <div class="skeleton-detail"><span></span><span></span><span></span></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="results-section" id="results-section">
+        <header class="results-header">
+          <div>
+            <span class="section-index">02</span>
+            <div>
+              <p class="kicker">Model output</p>
+              <h2>Recognition results</h2>
+            </div>
+          </div>
+          <div class="result-mode" id="result-mode">IDLE</div>
+        </header>
+        <div class="results-empty" id="results-empty">
+          <div class="terminal-glyph" aria-hidden="true"><span>&gt;_</span></div>
+          <p>No inference has been executed.</p>
+          <span>Upload a vehicle scene or plate crop and select Detect or Compare all.</span>
+        </div>
+        <div class="results-output is-hidden" id="results-output"></div>
+      </section>
+    </main>
+
+    <div class="toast is-hidden" id="toast" role="alert">
+      <span class="toast-mark">!</span><span id="toast-text"></span>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
