@@ -28,6 +28,7 @@ parseq_official_pipeline/
 ├── train_no_refinement/            # Script fine-tune PARSeq bằng CLI
 ├── refinement_finetune/            # Notebook fine-tune và quét refinement
 ├── preprocessing_best_config/      # Các cấu hình tiền xử lý ảnh và benchmark
+├── image_processing_study/         # Ablation study 13 phương pháp xử lý ảnh, train CRNN riêng từng phương pháp
 ├── demo/                           # Web demo inference + compare preprocessing methods
 ├── outputs/                        # Checkpoint, log, kết quả benchmark
 ├── requirements.txt
@@ -554,3 +555,169 @@ Kết quả chạy lại hơi khác:
 
 - Giữ nguyên `--seed`, split dữ liệu, checkpoint, preprocessing và `refine_iters`.
 - Một số CUDA kernel vẫn có thể tạo sai khác số học nhỏ.
+
+## 14. Nghiên cứu so sánh các phương pháp xử lý ảnh (`image_processing_study/`)
+
+Đồ án môn **Xử lý ảnh**: ablation study bám khung chương trình môn học, so sánh nhiều kỹ thuật xử
+lý ảnh cho bài toán đọc biển số. Khác với mục 7-8 ở trên (chỉ đổi cách tiền xử lý ảnh lúc đánh giá
+PARSeq **đã pretrain**), module này **train riêng một model nhỏ từ đầu cho mỗi phương pháp xử lý
+ảnh**, để đo đúng câu hỏi "phương pháp nào giúp model học tốt hơn" thay vì chỉ đo độ bền của một
+model có sẵn -- PARSeq pretrain quá mạnh nên khác biệt giữa các cách xử lý ảnh gần như bị san phẳng
+khi fine-tune. Model dùng ở đây là **CRNN + CTC** nhẹ (~2,19 triệu tham số, kiến trúc kinh điển của
+Shi et al.), train from scratch trên đúng 1 bộ train/val/test split cố định
+(`dataset.build_split`, `ocr_train.SPLIT_SEED = 42`) từ `color_filtered/{blue,other,yellow}/`, đủ
+nhạy để chất lượng ảnh đầu vào thật sự ảnh hưởng tới độ chính xác.
+
+### 14.1 Cấu trúc code
+
+```text
+image_processing_study/
+├── common.py                        # ANPR_CHARSET, normalize_plate_text, edit_distance
+├── dataset.py                       # build_split (split train/val/test cố định), PlateOCRDataset
+├── methods.py                       # registry 13 phương pháp xử lý ảnh + Wiener/PSF helper
+├── degrade.py                       # sinh suy giảm tổng hợp có kiểm soát (blur/noise) cho Thí nghiệm B
+├── model.py                         # CRNN (~2.19M tham số) + CTC greedy decode
+├── ocr_train.py                     # vòng lặp train/eval, OCRTrainConfig, fit(), checkpoint I/O
+├── run_experiment_a.py              # CLI: train 1 CRNN/phương pháp, xếp hạng theo test accuracy
+├── run_experiment_b.py              # CLI: đo PSNR/SSIM + OCR accuracy trên ảnh suy giảm tổng hợp
+├── visualize.py                     # sinh lưới ảnh before/after + biểu đồ cột so sánh
+├── IMAGE_PROCESSING_STUDY_Colab.ipynb  # notebook chạy trên Colab (GPU T4)
+└── README.md                        # tài liệu chi tiết riêng của module này
+```
+
+### 14.2 Hai thí nghiệm
+
+- **Thí nghiệm A** (`run_experiment_a.py`) -- train 1 CRNN riêng cho mỗi phương pháp trong
+  `methods.py` (cùng kiến trúc/seed/hyperparameter, cùng 1 split), so sánh exact-match accuracy /
+  CER trên tập test. Đây là bảng kết quả chính, trả lời "phương pháp xử lý ảnh nào tốt nhất cho
+  OCR biển số".
+- **Thí nghiệm B** (`run_experiment_b.py`) -- vì ảnh biển số thật không có "ảnh sạch" đã biết để so
+  sánh, thí nghiệm này tạo suy giảm tổng hợp có kiểm soát (`degrade.py`: Gaussian/motion/defocus
+  blur, Gaussian noise) trên đúng tập test của Thí nghiệm A, rồi đo PSNR/SSIM và OCR accuracy (qua
+  model `raw` đã train ở Thí nghiệm A) của các phương pháp phục hồi ảnh -- gồm cả agent RL deblur
+  (`rl_deblur/`) để so sánh với các phương pháp cổ điển.
+
+### 14.3 13 phương pháp xử lý ảnh (`methods.py`)
+
+| Method | Kỹ thuật | Chương môn học |
+| --- | --- | --- |
+| `raw` | Không xử lý (đối chứng), resize bilinear | baseline |
+| `bicubic_resize` | Resize bicubic thay vì bilinear | 7.1 Sampling & Interpolation |
+| `hist_eq` | Global histogram equalization | 1.1 Gray-level processing |
+| `otsu_binary` | Otsu threshold → nhị phân | 1.2 Binary image processing |
+| `clahe` | Adaptive histogram equalization | 2.1 Linear filtering / enhancement |
+| `median_denoise` | Median filter | 2.2 Nonlinear filtering |
+| `bilateral_denoise` | Bilateral filter | 2.2 Nonlinear filtering |
+| `morph_tophat` | White + black top-hat | 2.3 Morphological filtering |
+| `freq_highboost` | High-boost filter qua FFT | 2.5 Frequency-domain filtering |
+| `homomorphic` | Homomorphic filtering | 2.5 / 3.1 Restoration model |
+| `wavelet_denoise` | Wavelet soft-threshold (BayesShrink) | 3.5 Wavelet denoising |
+| `wiener_restore` | Wiener deconvolution (PSF giả định) | 3.1/3.4/3.6 Restoration & MMSE |
+| `rl_deblur_restore` | Agent RL (PixelRL + A2C) từ `rl_deblur/` | so sánh deep-learning restoration |
+
+`rl_deblur_restore` chỉ được thêm vào nếu tìm thấy checkpoint đã train
+(`outputs/rl_deblur/checkpoints/best_deblur_agent.pt`); nếu không có, method này tự bỏ qua (có log
+cảnh báo) thay vì làm hỏng cả sweep.
+
+### 14.4 Chạy
+
+Smoke test local (CPU, để bắt lỗi cú pháp/shape/CTC trước khi chạy thật):
+
+```bash
+python -m image_processing_study.run_experiment_a \
+  --methods raw clahe wavelet_denoise --no-include-rl \
+  --epochs 2 --batch-size 16 --limit-train 60 --limit-val 20 --limit-test 20 --device cpu
+
+python -m image_processing_study.run_experiment_b \
+  --raw-checkpoint outputs/image_processing_study/experiment_a/raw/best_model.pt \
+  --no-include-rl --limit 20 --device cpu
+```
+
+Chạy thật trên Colab: notebook `IMAGE_PROCESSING_STUDY_Colab.ipynb` chỉ giải nén 1 file zip rồi
+`import image_processing_study` trực tiếp (không dùng `%%writefile`), nên zip cần gộp cả code lẫn
+data:
+
+```bash
+zip -r parseq_ip_study_data.zip \
+  image_processing_study color_filtered rl_deblur \
+  outputs/rl_deblur/checkpoints/best_deblur_agent.pt \
+  -x "*/__pycache__/*" "*.ipynb"
+```
+
+Upload lên Google Drive rồi mở notebook trên Colab (Runtime > GPU T4). Notebook chạy cả 2 thí
+nghiệm, sinh ảnh minh họa + biểu đồ so sánh, và nén `outputs/image_processing_study/` gửi lại
+Drive. Chi tiết đầy đủ hơn (bao gồm cấu hình huấn luyện, biến kiểm soát, cách đọc log) nằm ở
+[`image_processing_study/README.md`](image_processing_study/README.md).
+
+### 14.5 Kết quả Thí nghiệm A -- xếp hạng theo test exact-match (367 mẫu test)
+
+Cấu hình: 100 epoch tối đa, early stopping patience 10, batch size 64, lr `1e-3`, seed 42, cùng
+split cho mọi phương pháp (`outputs/image_processing_study/experiment_a/run_config.json`).
+
+| Hạng | Method | Chương | Test exact match | Test CER | Test char acc | Best epoch |
+| ---: | --- | --- | ---: | ---: | ---: | ---: |
+| 1 | `bicubic_resize` | 7.1 Sampling & Interpolation | 70,84% | 5,09% | 94,91% | 53 |
+| 2 | `rl_deblur_restore` | Deep-learning restoration (so sánh) | 69,48% | 5,42% | 94,58% | 52 |
+| 3 | `wavelet_denoise` | 3.5 Wavelet denoising | 69,21% | 6,07% | 93,93% | 68 |
+| 4 | `bilateral_denoise` | 2.2 Nonlinear filtering | 64,85% | 6,26% | 93,74% | 86 |
+| 5 | `raw` (baseline) | -- | 59,40% | 8,37% | 91,63% | 42 |
+| 6 | `wiener_restore` | 3.1/3.4/3.6 Restoration & MMSE | 57,49% | 9,09% | 90,91% | 38 |
+| 7 | `morph_tophat` | 2.3 Morphological filtering | 55,04% | 9,38% | 90,62% | 49 |
+| 8 | `clahe` | 2.1 Linear filtering / enhancement | 53,68% | 9,28% | 90,72% | 54 |
+| 9 | `freq_highboost` | 2.5 Frequency-domain filtering | 53,41% | 9,21% | 90,79% | 42 |
+| 10 | `median_denoise` | 2.2 Nonlinear filtering | 52,86% | 9,28% | 90,72% | 36 |
+| 11 | `homomorphic` | 2.5 / 3.1 Restoration model | 52,04% | 9,93% | 90,07% | 58 |
+| 12 | `hist_eq` | 1.1 Gray-level processing | 51,77% | 9,96% | 90,04% | 43 |
+| 13 | `otsu_binary` | 1.2 Binary image processing | 41,69% | 20,90% | 79,10% | 46 |
+
+Kết luận nhanh: `bicubic_resize`, `rl_deblur_restore` và `wavelet_denoise` là 3 phương pháp duy
+nhất vượt qua baseline `raw` một cách rõ rệt; `otsu_binary` (nhị phân hoá cứng) làm mất quá nhiều
+thông tin và tệ nhất trong 13 phương pháp.
+
+### 14.6 Kết quả Thí nghiệm B -- phục hồi ảnh suy giảm tổng hợp (367 mẫu, dùng model `raw`)
+
+Phân bố loại suy giảm tổng hợp: `gaussian_blur` 97, `gaussian_noise` 94, `defocus_blur` 93,
+`motion_blur` 83 mẫu (`outputs/image_processing_study/experiment_b/degradation_kind_counts.csv`).
+
+| Method | Chương | PSNR (dB) | SSIM | OCR exact match | OCR CER |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `clean` (upper bound) | ground truth | ∞ | 1,000 | 59,40% | 8,42% |
+| `rl_deblur_restore` | Deep-learning restoration (so sánh) | 22,42 | 0,831 | 44,41% | 16,08% |
+| `wavelet_denoise` | 3.5 Wavelet denoising | 22,13 | 0,777 | 35,42% | 23,28% |
+| `wiener_restore_true_psf` | 3.1/3.4/3.6 Restoration & MMSE | 21,51 | 0,789 | 33,79% | 23,49% |
+| `degraded` (lower bound) | không phục hồi | 21,49 | 0,759 | 35,42% | 23,35% |
+| `bilateral_denoise` | 2.2 Nonlinear filtering | 21,44 | 0,745 | 30,52% | 26,60% |
+| `median_denoise` | 2.2 Nonlinear filtering | 21,06 | 0,746 | 32,15% | 26,21% |
+| `homomorphic` | 2.5 / 3.1 Restoration model | 13,87 | 0,608 | 20,71% | 30,46% |
+
+Kết luận nhanh: `rl_deblur_restore` phục hồi tốt nhất cả về PSNR/SSIM lẫn OCR accuracy trong số
+các phương pháp thử nghiệm, bỏ xa các bộ lọc cổ điển; `homomorphic` làm giảm PSNR xuống dưới cả
+`degraded` (không phục hồi) -- filter này không phù hợp với kiểu suy giảm blur/noise tổng hợp ở
+đây. `wiener_restore_true_psf` dùng đúng PSF đã tạo suy giảm (khác với `wiener_restore` ở Thí
+nghiệm A vốn giả định PSF) nhưng vẫn không cải thiện được OCR accuracy so với không xử lý gì.
+
+### 14.7 Ảnh minh hoạ
+
+| File | Nội dung |
+| --- | --- |
+| [`experiment_a_accuracy_bar.png`](outputs/image_processing_study/samples/experiment_a_accuracy_bar.png) | Biểu đồ cột xếp hạng exact-match accuracy 13 phương pháp (Thí nghiệm A) |
+| [`experiment_a_methods_grid.png`](outputs/image_processing_study/samples/experiment_a_methods_grid.png) | Lưới ảnh cùng 1 biển số qua từng phương pháp xử lý |
+| [`experiment_b_psnr_bar.png`](outputs/image_processing_study/samples/experiment_b_psnr_bar.png) | Biểu đồ cột PSNR các phương pháp phục hồi (Thí nghiệm B) |
+| [`experiment_b_restoration_grid.png`](outputs/image_processing_study/samples/experiment_b_restoration_grid.png) | Lưới ảnh clean/degraded/từng phương pháp phục hồi, theo 4 kiểu suy giảm |
+| [`preview_processed_samples.png`](outputs/image_processing_study/samples/preview_processed_samples.png) | Xem trước ảnh đã xử lý của 13 phương pháp trên 5 mẫu từ split train |
+
+![Experiment A accuracy bar chart](outputs/image_processing_study/samples/experiment_a_accuracy_bar.png)
+
+![Experiment B PSNR bar chart](outputs/image_processing_study/samples/experiment_b_psnr_bar.png)
+
+### 14.8 File output
+
+| Đường dẫn | Nội dung |
+| --- | --- |
+| `outputs/image_processing_study/experiment_a/<method>/{best_model.pt,history.csv,test_predictions.csv,summary.json}` | Checkpoint, lịch sử train, prediction, tổng hợp từng phương pháp |
+| `outputs/image_processing_study/experiment_a/comparison.csv` | Bảng xếp hạng chính của Thí nghiệm A |
+| `outputs/image_processing_study/experiment_a/run_config.json` | Hyperparameter dùng chung cho cả sweep |
+| `outputs/image_processing_study/experiment_b/comparison.csv` | PSNR/SSIM + OCR theo phương pháp phục hồi |
+| `outputs/image_processing_study/experiment_b/degradation_kind_counts.csv` | Phân bố loại suy giảm tổng hợp |
+| `outputs/image_processing_study/experiment_b/run_summary.json` | Cấu hình chạy (model OCR dùng, danh sách phương pháp phục hồi) |
+| `outputs/image_processing_study/samples/` | Lưới ảnh before/after + biểu đồ cột |
