@@ -21,7 +21,7 @@ except ImportError:
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-UI_METHOD_LIMIT = 26
+UI_METHOD_LIMIT = 29
 
 app = FastAPI(
     title="PARSeq Preprocessing Lab",

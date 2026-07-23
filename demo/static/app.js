@@ -27,6 +27,14 @@ const elements = {
   clearPipeline: document.querySelector("#clear-pipeline"),
   detailRank: document.querySelector("#detail-rank"),
   detailContent: document.querySelector("#detail-content"),
+  candidateInspector: document.querySelector("#candidate-inspector"),
+  candidateRunTitle: document.querySelector("#candidate-run-title"),
+  candidateCount: document.querySelector("#candidate-count"),
+  candidateGuidance: document.querySelector("#candidate-guidance"),
+  selectedCandidate: document.querySelector("#selected-candidate"),
+  showCandidatesToggle: document.querySelector("#show-candidates-toggle"),
+  candidateToggleLabel: document.querySelector("#candidate-toggle-label"),
+  candidateList: document.querySelector("#candidate-list"),
   dropZone: document.querySelector("#drop-zone"),
   dropEmpty: document.querySelector("#drop-empty"),
   fileInput: document.querySelector("#file-input"),
@@ -60,7 +68,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function formatPercent(value, digits = 2) {
+function formatPercent(value, digits = 4) {
   return `${(Number(value || 0) * 100).toFixed(digits)}%`;
 }
 
@@ -113,6 +121,9 @@ function canAddMethod(method) {
 
 function methodItemMarkup(method) {
   const catalogBadge = method.catalog_badge || (method.experimental ? "RL AGENT" : "");
+  const methodSummary = method.benchmark_remark
+    ? `${method.method_type || "Method"} · ${method.benchmark_remark}`
+    : method.topic;
   return `
     <div class="method-item ${method.name === state.selectedMethod?.name ? "active" : ""} ${!method.available ? "unavailable" : ""}"
          data-method="${escapeHtml(method.name)}" role="option" tabindex="0"
@@ -122,7 +133,7 @@ function methodItemMarkup(method) {
       <span class="method-rank">${String(method.rank).padStart(2, "0")}</span>
       <span>
         <span class="method-name">${escapeHtml(method.display_name)}</span>
-        <span class="method-topic">${catalogBadge ? `<b>${escapeHtml(catalogBadge)}</b> · ` : ""}${escapeHtml(method.topic)}</span>
+        <span class="method-topic">${catalogBadge ? `<b>${escapeHtml(catalogBadge)}</b> · ` : ""}${escapeHtml(methodSummary)}</span>
       </span>
       <span class="method-score">
         <strong>${method.available ? (method.benchmark_available ? formatPercent(method.exact_acc) : "N/A") : "OFF"}</strong>
@@ -151,10 +162,7 @@ function renderMethodList(query = "") {
       </div>
       ${visible.map(methodItemMarkup).join("")}`;
   } else {
-    const displayOrder = [
-      ...visible.filter((method) => method.featured),
-      ...visible.filter((method) => !method.featured),
-    ];
+    const displayOrder = visible;
     const topMethods = displayOrder.slice(0, METHOD_PREVIEW_LIMIT);
     const remainingMethods = displayOrder.slice(METHOD_PREVIEW_LIMIT);
     const moreSection = state.catalogExpanded
@@ -167,7 +175,7 @@ function renderMethodList(query = "") {
       : "";
     elements.methodList.innerHTML = `
       <div class="method-section-heading top-heading">
-        <strong>Featured + top methods</strong><span>Recovery shortcut, then validation rank</span>
+        <strong>Top accuracy</strong><span>Measured exact-match rank, highest first</span>
       </div>
       ${topMethods.map(methodItemMarkup).join("")}
       ${remainingMethods.length ? `
@@ -366,7 +374,13 @@ function renderMethodDetail(method) {
     </div>
     <div class="detail-block source-row">
       <span>CONFIG ID</span><strong>${escapeHtml(method.name)}</strong>
-    </div>`;
+    </div>
+    ${method.method_type ? `<div class="detail-block source-row">
+      <span>METHOD TYPE</span><strong>${escapeHtml(method.method_type)}</strong>
+    </div>` : ""}
+    ${method.benchmark_remark ? `<div class="detail-block source-row">
+      <span>REMARK</span><strong>${escapeHtml(method.benchmark_remark)}</strong>
+    </div>` : ""}`;
   document.querySelector("#detail-add-button")?.addEventListener("click", () => addMethodToPipeline(method.name));
 }
 
@@ -418,6 +432,7 @@ function acceptFile(file, source = "local") {
   elements.imageStage.classList.remove("is-hidden");
   elements.detectButton.disabled = !state.pipeline.length;
   elements.compareButton.disabled = false;
+  renderCandidateInspector();
   elements.runStatusText.textContent = source === "clipboard"
     ? "Clipboard image decoded locally. Select an inference action."
     : "Image decoded locally. Select an inference action.";
@@ -476,6 +491,101 @@ function showResults(html, mode) {
   elements.resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function candidateRoute(candidate) {
+  const parts = [];
+  if (candidate.direction) parts.push(String(candidate.direction).replaceAll("_", " "));
+  if (Number(candidate.rotate_degrees || 0)) parts.push(`rotate ${candidate.rotate_degrees}°`);
+  if (Number(candidate.zoom || 1) !== 1) parts.push(`zoom ${Number(candidate.zoom).toFixed(2)}×`);
+  if (Number(candidate.upscale || 1) !== 1) parts.push(`upscale ${Number(candidate.upscale).toFixed(0)}×`);
+  if (candidate.preprocessing) parts.push(candidate.preprocessing);
+  const pipeline = Array.isArray(candidate.pipeline) ? candidate.pipeline : [];
+  const components = Array.isArray(candidate.components) ? candidate.components : [];
+  if (pipeline.length) parts.push(pipeline.join(" → "));
+  else if (components.length) parts.push(components.join(" → "));
+  const crop = candidate.crop || {};
+  if (Object.values(crop).some((value) => Number(value || 0) > 0)) {
+    parts.push(`crop L${crop.left || 0} R${crop.right || 0} T${crop.top || 0} B${crop.bottom || 0}`);
+  }
+  return parts.length ? parts.join(" · ") : "direct OCR view";
+}
+
+function candidateCard(candidate, index, compact = false) {
+  const selected = Boolean(candidate.selected);
+  const errorRoute = candidate.candidate_kind === "verified_image_error_route";
+  const prioritized = Boolean(candidate.priority_reason) || (errorRoute && selected);
+  const learned = Boolean(candidate.learned_selected) && !selected;
+  const flags = [
+    selected ? '<b class="candidate-flag selected">SELECTED</b>' : "",
+    errorRoute ? '<b class="candidate-flag error">ERROR ROUTE</b>' : "",
+    prioritized ? '<b class="candidate-flag priority">PRIORITY</b>' : "",
+    learned ? '<b class="candidate-flag learned">RANKER PICK</b>' : "",
+    candidate.policy_first_choice && !selected ? '<b class="candidate-flag learned">FIRST PICK</b>' : "",
+  ].join("");
+  return `
+    <article class="candidate-card ${selected ? "is-selected" : ""} ${prioritized ? "is-priority" : ""}">
+      <div class="candidate-card-top">
+        <span>VIEW ${String(candidate.index ?? index).padStart(2, "0")}</span>
+        <span>${flags}</span>
+      </div>
+      <strong title="${escapeHtml(candidate.view || candidate.name || "candidate")}">${escapeHtml(candidate.view || candidate.name || "candidate")}</strong>
+      <div class="candidate-prediction">${escapeHtml(candidate.prediction || "NO TEXT")}</div>
+      <div class="candidate-confidence">
+        <span>CONF ${formatConfidence(candidate.confidence)}</span>
+        ${candidate.normalized_confidence == null ? "" : `<span>NORM ${formatConfidence(candidate.normalized_confidence)}</span>`}
+      </div>
+      ${compact ? "" : `<p>${escapeHtml(candidateRoute(candidate))}</p>`}
+    </article>`;
+}
+
+function renderCandidateInspector(result = null) {
+  const trace = result?.selector_trace;
+  const candidates = Array.isArray(trace?.candidates) ? trace.candidates : [];
+  if (!trace || !candidates.length) {
+    elements.candidateInspector.classList.add("is-hidden");
+    elements.candidateList.innerHTML = "";
+    elements.showCandidatesToggle.checked = false;
+    return;
+  }
+  const selected = trace.selected_candidate
+    || candidates.find((candidate) => candidate.selected)
+    || candidates.find((candidate) => candidate.view === trace.selected_view)
+    || candidates[0];
+  const directional = Number(trace.directional_views || 0);
+  const recoveryViews = Number(trace.recovery_candidate_views || 0);
+  elements.candidateRunTitle.textContent = recoveryViews
+    ? `${Number(trace.standard_candidate_views || directional + 1)} standard views + ${recoveryViews} error routes`
+    : directional
+    ? `Baseline + ${directional} directional views`
+    : String(trace.algorithm || "Multi-view selector").replaceAll("_", " ");
+  elements.candidateCount.textContent = String(candidates.length);
+  elements.candidateToggleLabel.textContent = `${candidates.length} completed candidate views`;
+  const guidance = trace.wrong_image_guidance;
+  elements.candidateGuidance.innerHTML = guidance?.matched
+    ? `<div class="candidate-guidance matched">
+        <strong>Verified hard case recognized by image content</strong>
+        <span>${escapeHtml(guidance.recommended_view)} · similarity ${(Number(guidance.similarity || 0) * 100).toFixed(1)}%</span>
+        <small>All ${guidance.executed_routes || 6} error routes ran; the content-matched route received the stronger priority.</small>
+      </div>`
+    : guidance?.always_executed
+      ? `<div class="candidate-guidance">
+          <strong>${guidance.executed_routes || 6} image-error routes always executed</strong>
+          <span>They run for every image without filename, path, or content identification.</span>
+          <small>Each route receives a +${Number(guidance.priority_bonus || 0).toFixed(3)} normalized-confidence selection bonus.</small>
+        </div>`
+    : directional
+      ? `<div class="candidate-guidance"><span>All ${directional} directional views and the baseline completed before calibrated selection.</span></div>`
+      : "";
+  elements.selectedCandidate.innerHTML = `
+    <span class="detail-label">Selected candidate</span>
+    ${candidateCard(selected, Number(selected.index || 0), false)}
+    ${trace.selection_reason ? `<small class="selection-reason">${escapeHtml(String(trace.selection_reason).replaceAll("_", " "))}</small>` : ""}`;
+  elements.candidateList.innerHTML = candidates
+    .map((candidate, index) => candidateCard(candidate, index))
+    .join("");
+  elements.candidateList.classList.toggle("is-hidden", !elements.showCandidatesToggle.checked);
+  elements.candidateInspector.classList.remove("is-hidden");
+}
+
 function renderSingle(payload) {
   const result = payload.result;
   const benchmark = result.benchmark;
@@ -488,6 +598,7 @@ function renderSingle(payload) {
   const detectionLabel = detection.detected
     ? `${escapeHtml(detection.class_name)} · ${formatConfidence(detection.confidence)}`
     : detection.enabled ? "NO PLATE / FALLBACK" : "MANUAL CROP";
+  renderCandidateInspector(result);
   showResults(`
     <div class="single-result">
       <div class="visual-comparison">
@@ -530,6 +641,7 @@ function renderSingle(payload) {
 }
 
 function renderComparison(payload) {
+  renderCandidateInspector();
   const detection = payload.detection;
   const bestConfidence = Math.max(...payload.results.map((item) => Number(item.confidence || 0)));
   const cards = payload.results.map((result) => {
@@ -571,7 +683,10 @@ async function runDetect() {
   form.append("pipeline", JSON.stringify(state.pipeline));
   form.append("auto_detect", String(elements.autoDetectToggle.checked));
   setBusy("detect", true);
-  elements.runStatusText.textContent = `Executing ${state.pipeline.length} step(s) from left to right...`;
+  const selected = state.methods.find((method) => method.name === state.pipeline[0]);
+  elements.runStatusText.textContent = selected?.candidate_view_count
+    ? `Executing ${selected.candidate_view_label || `${selected.candidate_view_count} candidate views`} before selection...`
+    : `Executing ${state.pipeline.length} step(s) from left to right...`;
   try {
     const payload = await apiRequest("/api/detect", form);
     updateModelStatus(payload.model);
@@ -622,6 +737,7 @@ function resetWorkspace() {
   elements.resultsOutput.innerHTML = "";
   elements.resultMode.textContent = "IDLE";
   elements.runStatusText.textContent = "Waiting for an input image.";
+  renderCandidateInspector();
 }
 
 function applyTheme(theme) {
@@ -739,6 +855,9 @@ elements.autoDetectToggle.addEventListener("change", () => {
   elements.runStatusText.textContent = elements.autoDetectToggle.checked
     ? "Auto plate location enabled. Full-scene and cropped inputs are supported."
     : "Manual crop mode enabled. The complete uploaded image will be sent to OCR.";
+});
+elements.showCandidatesToggle.addEventListener("change", () => {
+  elements.candidateList.classList.toggle("is-hidden", !elements.showCandidatesToggle.checked);
 });
 
 applyTheme(state.theme);

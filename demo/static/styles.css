@@ -411,6 +411,41 @@ button { color: inherit; }
 .source-row { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font: 8px var(--mono); }
 .source-row strong { color: var(--ink); font-weight: 600; text-align: right; }
 
+.candidate-inspector { margin-top: 18px; padding-top: 18px; border-top: 2px solid var(--line-dark); }
+.candidate-inspector-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+.candidate-inspector-header .detail-label { margin-bottom: 4px; }
+.candidate-inspector-header strong { font: 700 12px var(--mono); text-transform: capitalize; }
+.candidate-count { min-width: 28px; padding: 6px 7px; border-radius: 4px; background: var(--blue-soft); color: var(--blue); font: 700 9px var(--mono); text-align: center; }
+.candidate-guidance { margin-bottom: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #f7f9fc; color: var(--muted); font: 8px var(--mono); line-height: 1.5; }
+.candidate-guidance.matched { border-color: #e3b66a; background: #fff8e9; color: #7c571a; }
+.candidate-guidance strong, .candidate-guidance span, .candidate-guidance small { display: block; }
+.candidate-guidance strong { margin-bottom: 4px; color: var(--ink); font: 700 9px var(--sans); }
+.candidate-guidance small { margin-top: 5px; color: var(--muted); }
+.selected-candidate { margin-bottom: 10px; }
+.selection-reason { display: block; margin-top: 6px; color: var(--muted); font: 7px var(--mono); text-transform: uppercase; }
+.candidate-toggle { display: flex; align-items: center; gap: 9px; margin: 10px 0; padding: 10px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.candidate-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.candidate-toggle input:checked + .toggle-track { border-color: var(--blue); background: var(--blue); }
+.candidate-toggle input:checked + .toggle-track i { transform: translateX(13px); }
+.candidate-toggle input:focus-visible + .toggle-track { box-shadow: 0 0 0 3px rgba(36,87,255,.14); }
+.candidate-toggle strong, .candidate-toggle small { display: block; }
+.candidate-toggle strong { margin-bottom: 2px; font-size: 9px; }
+.candidate-toggle small { color: var(--muted); font: 7.5px var(--mono); }
+.candidate-list { display: grid; gap: 7px; padding-top: 3px; }
+.candidate-card { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc; }
+.candidate-card.is-selected { border-color: #9eaff7; box-shadow: inset 3px 0 0 var(--blue); }
+.candidate-card.is-priority { border-color: #e3b66a; background: #fffaf0; }
+.candidate-card-top { min-height: 14px; display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-bottom: 5px; color: var(--muted); font: 7px var(--mono); }
+.candidate-card-top > span:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
+.candidate-flag { padding: 2px 4px; border-radius: 2px; background: #e9edff; color: var(--blue); font: 700 6px var(--mono); }
+.candidate-flag.priority { background: #ffedc8; color: #895c13; }
+.candidate-flag.error { background: #eaf7f2; color: var(--green); }
+.candidate-flag.learned { background: #eee8ff; color: #6e43d5; }
+.candidate-card > strong { display: block; overflow: hidden; margin-bottom: 5px; font: 650 9px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.candidate-prediction { margin-bottom: 6px; font: 750 18px var(--mono); letter-spacing: .07em; }
+.candidate-confidence { display: flex; flex-wrap: wrap; gap: 8px; color: var(--blue); font: 7px var(--mono); }
+.candidate-card p { margin: 7px 0 0; color: var(--muted); font: 7.5px var(--mono); line-height: 1.45; overflow-wrap: anywhere; }
+
 .results-section { margin-top: 12px; min-height: 280px; }
 .results-header { min-height: 73px; display: flex; align-items: center; justify-content: space-between; padding: 15px 19px; border-bottom: 1px solid var(--line); }
 .results-header h2 { margin: 3px 0 0; font-size: 16px; }
@@ -521,6 +556,11 @@ html[data-theme="dark"] .terminal-glyph,
 html[data-theme="dark"] .recognition-card,
 html[data-theme="dark"] .compare-summary,
 html[data-theme="dark"] .detection-data { background: #151a22; }
+html[data-theme="dark"] .candidate-toggle,
+html[data-theme="dark"] .candidate-card,
+html[data-theme="dark"] .candidate-guidance { background: #151a22; }
+html[data-theme="dark"] .candidate-card.is-priority,
+html[data-theme="dark"] .candidate-guidance.matched { background: #2b2417; color: #e5bd77; }
 html[data-theme="dark"] .pipeline-chip,
 html[data-theme="dark"] .method-more-section .method-item,
 html[data-theme="dark"] .button,

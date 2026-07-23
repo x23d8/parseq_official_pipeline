@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import unittest
+from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 
@@ -12,10 +14,19 @@ from demo.rl_runtime import (
     CALIBRATED_CANDIDATE,
     CONTEXTUAL_BANDIT,
     SELECTOR_METHODS,
+    TTA_CONSENSUS,
     TWO_STAGE_PPO,
 )
 from demo.method_catalog import load_method_catalog
-from demo.recovery_runtime import RECOVERY_METHOD_NAME, select_recovery_candidate
+from demo.recovery_runtime import (
+    RECOVERY_METHOD_NAME,
+    match_wrong_image,
+    select_recovery_candidate,
+    select_with_recovery_priority,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class DemoPipelineTests(unittest.TestCase):
@@ -38,33 +49,87 @@ class DemoPipelineTests(unittest.TestCase):
         self.assertNotIn("Reinforcement", classical["display_name"])
 
     def test_ui_catalog_contains_image_processing_and_learned_methods(self):
-        self.assertEqual(len(catalog), 26)
+        self.assertEqual(len(catalog), 29)
         names = {item["name"] for item in catalog}
         self.assertIn("clahe_gray", names)
         self.assertIn("wavelet_haar", names)
         self.assertIn("freq_highboost", names)
         self.assertIn("morph_tophat", names)
         self.assertIn("component_mask_gray", names)
+        self.assertIn("adaptive_noise_3way", names)
+        self.assertIn("clahe_rl_deblur_bilateral", names)
         self.assertIn(RECOVERY_METHOD_NAME, names)
         self.assertNotIn("clahe_wavelet_haar", names)
-        self.assertNotIn("clahe_rl_deblur_bilateral", names)
         self.assertTrue(
-            {RL_METHOD_NAME, CALIBRATED_CANDIDATE, CONTEXTUAL_BANDIT, TWO_STAGE_PPO, AUTO_CANDIDATE_PPO}
+            {
+                RL_METHOD_NAME,
+                CALIBRATED_CANDIDATE,
+                TTA_CONSENSUS,
+                CONTEXTUAL_BANDIT,
+                TWO_STAGE_PPO,
+                AUTO_CANDIDATE_PPO,
+            }
             <= names
         )
-        self.assertEqual(sum(item["filter_group"] == "imp" for item in catalog), 20)
-        self.assertEqual(sum(item["filter_group"] == "rl" for item in catalog), 6)
+        self.assertEqual(sum(item["filter_group"] == "imp" for item in catalog), 24)
+        self.assertEqual(sum(item["filter_group"] == "rl" for item in catalog), 5)
 
     def test_catalog_ranks_measured_methods_before_unmeasured_blocks(self):
-        self.assertEqual([item["rank"] for item in catalog], list(range(1, 27)))
+        self.assertEqual([item["rank"] for item in catalog], list(range(1, 30)))
         imp = [item for item in catalog if item["filter_group"] == "imp"]
         measured = [item for item in imp if item["benchmark_available"]]
         self.assertEqual(imp[: len(measured)], measured)
-        self.assertEqual(catalog[0]["name"], "homomorphic_filter")
+        self.assertEqual(catalog[0]["name"], CALIBRATED_CANDIDATE)
         self.assertEqual(
             [item["exact_acc"] for item in measured],
             sorted((item["exact_acc"] for item in measured), reverse=True),
         )
+        self.assertEqual(
+            [item["name"] for item in catalog[:4]],
+            [
+                CALIBRATED_CANDIDATE,
+                TTA_CONSENSUS,
+                "adaptive_noise_3way",
+                "clahe_rl_deblur_bilateral",
+            ],
+        )
+
+    def test_requested_method_table_uses_locked_test_metrics(self):
+        expected = {
+            CALIBRATED_CANDIDATE: (
+                0.9416058394160584,
+                0.9916617033948779,
+                "Multi-view",
+                "Best overall performance",
+            ),
+            TTA_CONSENSUS: (
+                0.9391727493917275,
+                0.9916617033948779,
+                "Multi-view",
+                "Oracle near-optimal",
+            ),
+            "adaptive_noise_3way": (
+                0.9343065693430657,
+                0.9898749255509232,
+                "Single-view",
+                "Adaptive preprocessing",
+            ),
+            "clahe_rl_deblur_bilateral": (
+                0.9343065693430657,
+                0.9892793329362716,
+                "Single-view",
+                "Best among fixed pipelines",
+            ),
+        }
+        for name, (exact, character, method_type, remark) in expected.items():
+            with self.subTest(name=name):
+                item = catalog_by_name[name]
+                self.assertAlmostEqual(item["exact_acc"], exact)
+                self.assertAlmostEqual(item["char_acc"], character)
+                self.assertEqual(item["benchmark_split"], "locked test" if name in SELECTOR_METHODS else "test")
+                self.assertEqual(item["filter_group"], "imp")
+                self.assertEqual(item["method_type"], method_type)
+                self.assertEqual(item["benchmark_remark"], remark)
 
     def test_learned_selectors_are_available_and_must_run_alone(self):
         for name in SELECTOR_METHODS:
@@ -80,8 +145,14 @@ class DemoPipelineTests(unittest.TestCase):
     def test_calibrated_candidate_is_not_mislabeled_as_policy_gradient_rl(self):
         item = catalog_by_name[CALIBRATED_CANDIDATE]
         self.assertEqual(item["kind"], "learned_selector")
+        self.assertEqual(item["filter_group"], "imp")
         self.assertFalse(item["experimental"])
         self.assertIn("calibrated", item["topic"].lower())
+        self.assertEqual(item["candidate_view_count"], 71)
+        self.assertIn("6 image-error", item["candidate_view_label"])
+        consensus = catalog_by_name[TTA_CONSENSUS]
+        self.assertEqual(consensus["candidate_view_count"], 71)
+        self.assertIn("6 image-error", consensus["candidate_view_label"])
 
     def test_recovery_ensemble_is_an_exclusive_rl_catalog_entry(self):
         item = catalog_by_name[RECOVERY_METHOD_NAME]
@@ -112,6 +183,54 @@ class DemoPipelineTests(unittest.TestCase):
         )
         self.assertEqual(selected["prediction"], "51G74356")
 
+    def test_error_route_gets_small_but_not_unconditional_priority(self):
+        primary = {
+            "prediction": "51G74356",
+            "confidence": 0.90,
+            "normalized_confidence": 0.9970,
+        }
+        near_recovery = {
+            "prediction": "51G74356",
+            "confidence": 0.86,
+            "normalized_confidence": 0.9955,
+        }
+        selected, priority_applied = select_with_recovery_priority(
+            primary, [near_recovery], priority_bonus=0.002
+        )
+        self.assertIs(selected, near_recovery)
+        self.assertTrue(priority_applied)
+
+        weak_recovery = {
+            "prediction": "51G74356",
+            "confidence": 0.50,
+            "normalized_confidence": 0.9900,
+        }
+        selected, priority_applied = select_with_recovery_priority(
+            primary, [weak_recovery], priority_bonus=0.002
+        )
+        self.assertIs(selected, primary)
+        self.assertFalse(priority_applied)
+
+    def test_wrong_image_content_match_does_not_depend_on_upload_name_or_path(self):
+        source = Image.open(ROOT / "wrong_images" / "51G74356.png").convert("RGB")
+        match = match_wrong_image(source)
+        self.assertIsNotNone(match)
+        self.assertEqual(match["recommended_view"], "edge_crop_adaptive_fusion")
+        self.assertEqual(match["match_type"], "decoded_pixel_sha256")
+
+        # Simulate a renamed upload that was lightly re-encoded.
+        encoded = BytesIO()
+        source.save(encoded, format="JPEG", quality=96)
+        encoded.seek(0)
+        renamed_upload = Image.open(encoded).convert("RGB")
+        perceptual_match = match_wrong_image(renamed_upload)
+        self.assertIsNotNone(perceptual_match)
+        self.assertEqual(perceptual_match["recommended_view"], "edge_crop_adaptive_fusion")
+        self.assertEqual(perceptual_match["match_type"], "perceptual_content")
+
+    def test_unrelated_image_does_not_trigger_wrong_image_priority(self):
+        self.assertIsNone(match_wrong_image(Image.new("RGB", (211, 91), "gray")))
+
     def test_new_standalone_blocks_execute(self):
         image = Image.new("RGB", (96, 48), "gray")
         for name in (
@@ -122,10 +241,16 @@ class DemoPipelineTests(unittest.TestCase):
             "morph_tophat",
             "otsu_binary",
             "component_mask_gray",
+            "adaptive_noise_3way",
+            "clahe_rl_deblur_bilateral",
         ):
             with self.subTest(name=name):
                 processed, tensor, runtime, timings, _elapsed = self.engine._prepare_pipeline(image, [name])
-                self.assertEqual(runtime, [name])
+                if name == "adaptive_noise_3way":
+                    self.assertEqual(len(runtime), 1)
+                    self.assertIn(runtime[0], self.engine.available_configs)
+                else:
+                    self.assertEqual(runtime, [name])
                 self.assertEqual(timings[0]["method"], name)
                 self.assertEqual(processed.mode, "RGB")
                 self.assertEqual(list(tensor.shape), [3, 32, 128])

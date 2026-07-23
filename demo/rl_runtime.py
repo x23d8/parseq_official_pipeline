@@ -29,13 +29,38 @@ if str(LOCAL_ROOT) not in sys.path:
 import preprocessing_best_config.benchmark_multiscale_selector_phase2  # noqa: E402,F401
 import preprocessing_best_config.benchmark_multiscale_tta  # noqa: E402,F401
 
+try:
+    from .recovery_runtime import (
+        RECOVERY_VIEWS,
+        is_plausible_vietnamese_plate,
+        match_wrong_image,
+        recovery_view,
+        select_with_recovery_priority,
+    )
+except ImportError:
+    from recovery_runtime import (
+        RECOVERY_VIEWS,
+        is_plausible_vietnamese_plate,
+        match_wrong_image,
+        recovery_view,
+        select_with_recovery_priority,
+    )
+
 
 CALIBRATED_CANDIDATE = "calibrated_candidate_selector"
+TTA_CONSENSUS = "tta_65_view_consensus"
 CONTEXTUAL_BANDIT = "contextual_bandit"
 TWO_STAGE_PPO = "two_stage_ppo"
 AUTO_CANDIDATE_PPO = "auto_candidate_ppo"
+ERROR_ROUTE_PRIORITY_BONUS = 0.002
 SELECTOR_METHODS = frozenset(
-    {CALIBRATED_CANDIDATE, CONTEXTUAL_BANDIT, TWO_STAGE_PPO, AUTO_CANDIDATE_PPO}
+    {
+        CALIBRATED_CANDIDATE,
+        TTA_CONSENSUS,
+        CONTEXTUAL_BANDIT,
+        TWO_STAGE_PPO,
+        AUTO_CANDIDATE_PPO,
+    }
 )
 
 
@@ -51,6 +76,8 @@ class LearnedSelectorRuntime:
 
         self.paths = {
             CALIBRATED_CANDIDATE: self.root
+            / "reinforcement_learning/phase_2_calibrated_selector/results/phase2_selector.joblib",
+            TTA_CONSENSUS: self.root
             / "reinforcement_learning/phase_2_calibrated_selector/results/phase2_selector.joblib",
             CONTEXTUAL_BANDIT: self.root
             / "outputs/rl_restoration/router_seed_123/best_reward_router.pt",
@@ -381,6 +408,25 @@ class LearnedSelectorRuntime:
         )
         first_index, selected_index = int(first[0]), int(selected[0])
         selected_view = views[selected_index]
+        candidate_rows = []
+        for index, view in enumerate(views):
+            candidate_rows.append(
+                {
+                    "index": index,
+                    "view": view.name,
+                    "prediction": output["predictions"][index],
+                    "confidence": float(output["confidence"][index]),
+                    "normalized_confidence": float(output["normalized_confidence"][index]),
+                    "status": "executed",
+                    "selected": index == selected_index,
+                    "policy_first_choice": index == first_index,
+                    "components": list(view.components) or ["train_baseline"],
+                    "direction": "unwrap_two_line" if view.unwrap_two_line else "full_plate",
+                    "zoom": float(view.zoom),
+                    "upscale": float(view.upscale),
+                    "cost": float(view.cost),
+                }
+            )
         return self._result(
             AUTO_CANDIDATE_PPO,
             processed[selected_index],
@@ -395,6 +441,8 @@ class LearnedSelectorRuntime:
                 "final_action": selected_view.name,
                 "components": list(selected_view.components) or ["train_baseline"],
                 "revised": bool(revised[0]),
+                "selected_candidate": candidate_rows[selected_index],
+                "candidates": candidate_rows,
             },
         )
 
@@ -425,7 +473,12 @@ class LearnedSelectorRuntime:
         self._loaded[CALIBRATED_CANDIDATE] = artifact
         return artifact
 
-    def _run_calibrated(self, engine, image: Image.Image) -> dict[str, Any]:
+    def _run_calibrated(
+        self,
+        engine,
+        image: Image.Image,
+        method: str = CALIBRATED_CANDIDATE,
+    ) -> dict[str, Any]:
         started = time.perf_counter()
         artifact = self._load_calibrated()
         from preprocessing import get_preprocessing_config, preprocess_plate_image
@@ -443,6 +496,13 @@ class LearnedSelectorRuntime:
         )
 
         specs = build_specs()
+        wrong_image_match = match_wrong_image(image)
+        error_views = tuple(view for view in RECOVERY_VIEWS if view.name != "baseline")
+        matched_view_name = (
+            recovery_view(str(wrong_image_match["recommended_view"])).name
+            if wrong_image_match is not None
+            else None
+        )
         processed: list[Image.Image] = []
         for spec in specs:
             view = apply_center_zoom(image.convert("RGB"), spec.zoom)
@@ -452,49 +512,165 @@ class LearnedSelectorRuntime:
             processed.append(
                 preprocess_plate_image(view, get_preprocessing_config(spec.preprocessing)).convert("RGB")
             )
+        for error_view in error_views:
+            recovery_input = error_view.apply_geometry(image)
+            recovery_processed, _tensor, _runtime, _timings, _elapsed = engine._prepare_pipeline(
+                recovery_input, error_view.pipeline
+            )
+            processed.append(recovery_processed)
         output = self._ocr(engine, processed)
         rows = []
-        for spec, prediction, confidence, normalized in zip(
-            specs, output["predictions"], output["confidence"], output["normalized_confidence"]
-        ):
+        for index, spec in enumerate(specs):
+            prediction = output["predictions"][index]
+            confidence = output["confidence"][index]
+            normalized = output["normalized_confidence"][index]
             rows.append(
                 {
-                    "image_path": "runtime", "target": "", "prediction": prediction, "view": spec.name,
+                    "index": index, "image_path": "runtime", "target": "", "prediction": prediction,
+                    "view": spec.name,
                     "confidence": float(confidence), "normalized_confidence": float(normalized), "exact": False,
                     "edit_distance": len(prediction), "target_length": 1, "zoom": spec.zoom,
                     "upscale": spec.upscale, "preprocessing": spec.preprocessing,
                     "unwrap_two_line": spec.unwrap_two_line,
+                    "direction": "unwrap_two_line" if spec.unwrap_two_line else "full_plate",
+                    "status": "executed",
+                    "candidate_kind": "baseline" if index == 0 else "calibrated_view",
+                    "plausible_plate": is_plausible_vietnamese_plate(prediction),
                 }
             )
         predictions = pd.DataFrame(rows)
         stats = deserialize_reference_stats(artifact["reference_stats"])
         candidates = build_candidate_features(predictions, self._image_features(image), stats)
         scored = score_candidates(artifact["model"], candidates, artifact["feature_columns"])
-        selected = select_predictions(scored, float(artifact["switch_margin"])).iloc[0]
+        consensus_only = method == TTA_CONSENSUS
+        switch_margin = float("inf") if consensus_only else float(artifact["switch_margin"])
+        selected = select_predictions(scored, switch_margin).iloc[0]
         supporting = str(selected["supporting_views"]).split(";")
         matches = [index for index, row in enumerate(rows) if row["view"] in supporting and row["prediction"] == selected["prediction"]]
-        selected_index = max(matches, key=lambda index: rows[index]["confidence"]) if matches else 0
+        learned_selected_index = max(matches, key=lambda index: rows[index]["confidence"]) if matches else 0
+        recovery_rows: list[dict[str, Any]] = []
+        for offset, error_view in enumerate(error_views):
+            index = len(specs) + offset
+            prediction = output["predictions"][index]
+            content_matched_route = error_view.name == matched_view_name
+            recovery_row = (
+                {
+                    "index": index,
+                    "image_path": "runtime",
+                    "target": "",
+                    "prediction": prediction,
+                    "view": error_view.name,
+                    "confidence": float(output["confidence"][index]),
+                    "normalized_confidence": float(output["normalized_confidence"][index]),
+                    "exact": False,
+                    "edit_distance": len(prediction),
+                    "target_length": 1,
+                    "zoom": 1.0,
+                    "upscale": 1.0,
+                    "preprocessing": " -> ".join(error_view.pipeline),
+                    "unwrap_two_line": False,
+                    "direction": "verified_image_error_route",
+                    "status": (
+                        "executed_content_match_priority"
+                        if content_matched_route
+                        else "executed_recovery_route"
+                    ),
+                    "candidate_kind": "verified_image_error_route",
+                    "pipeline": list(error_view.pipeline),
+                    "plausible_plate": is_plausible_vietnamese_plate(prediction),
+                    "priority_bonus": ERROR_ROUTE_PRIORITY_BONUS,
+                    "content_matched_route": content_matched_route,
+                }
+            )
+            if content_matched_route:
+                recovery_row["priority_reason"] = "content_match_to_verified_wrong_image"
+            recovery_rows.append(recovery_row)
+            rows.append(recovery_row)
+
+        soft_priority_applied = False
+        if matched_view_name is not None:
+            selected_row = next(row for row in recovery_rows if row["view"] == matched_view_name)
+            selection_reason = "verified_wrong_image_content_priority"
+        else:
+            selected_row, soft_priority_applied = select_with_recovery_priority(
+                rows[learned_selected_index],
+                recovery_rows,
+                priority_bonus=ERROR_ROUTE_PRIORITY_BONUS,
+            )
+            selection_reason = (
+                "verified_image_error_route_soft_priority"
+                if soft_priority_applied
+                else "locked_65_view_consensus"
+                if consensus_only
+                else "locked_calibrated_pairwise_ranker"
+            )
+        selected_index = int(selected_row["index"])
+        for index, row in enumerate(rows):
+            row["learned_selected"] = index == learned_selected_index
+            row["selected"] = index == selected_index
+        guidance = {
+            "matched": wrong_image_match is not None,
+            "reference_count": 6,
+            "always_executed": True,
+            "executed_routes": len(error_views),
+            "priority_bonus": ERROR_ROUTE_PRIORITY_BONUS,
+            "priority_applied": selected_index >= len(specs),
+            "soft_priority_applied": soft_priority_applied,
+            "message": (
+                "All verified image-error routes were executed and received a small "
+                "selection bonus without requiring content identification."
+            ),
+        }
+        if wrong_image_match is not None:
+            guidance.update(wrong_image_match)
+            guidance["message"] = (
+                "Image content matched a verified hard case; its recovery route "
+                "was prioritized while all six image-error routes still ran."
+            )
+        runtime_steps = [method]
+        if wrong_image_match is not None:
+            runtime_steps.append("content_match_priority")
+        elif soft_priority_applied:
+            runtime_steps.append("image_error_route_soft_priority")
+        runtime_steps.append(str(selected_row["view"]))
         return self._result(
-            CALIBRATED_CANDIDATE,
+            method,
             processed[selected_index],
-            str(selected["prediction"]),
-            rows[selected_index]["confidence"],
-            [CALIBRATED_CANDIDATE, rows[selected_index]["view"]],
+            str(selected_row["prediction"]),
+            float(selected_row["confidence"]),
+            runtime_steps,
             started,
             {
-                "algorithm": "calibrated_pairwise_candidate_selector",
+                "algorithm": (
+                    "locked_65_view_tta_consensus"
+                    if consensus_only
+                    else "calibrated_pairwise_candidate_selector"
+                ),
                 "candidate_views": len(specs),
-                "unique_predictions": int(len(candidates)),
-                "selected_view": rows[selected_index]["view"],
+                "unique_predictions": len({str(row["prediction"]) for row in rows}),
+                "selector_unique_predictions": int(len(candidates)),
+                "baseline_views": 1,
+                "directional_views": max(len(specs) - 1, 0),
+                "standard_candidate_views": len(specs),
+                "recovery_candidate_views": len(error_views),
+                "candidate_count": len(rows),
+                "selected_view": selected_row["view"],
+                "learned_selected_view": rows[learned_selected_index]["view"],
                 "votes": int(selected["votes"]),
                 "switched_from_phase1": bool(selected["switched_from_phase1"]),
                 "score_gain_over_phase1": float(selected["score_gain_over_phase1"]),
+                "selection_reason": selection_reason,
+                "wrong_image_guidance": guidance,
+                "selected_candidate": selected_row,
+                "candidates": rows,
             },
         )
 
     def run(self, engine, image: Image.Image, method: str) -> dict[str, Any]:
         if method == CALIBRATED_CANDIDATE:
             return self._run_calibrated(engine, image)
+        if method == TTA_CONSENSUS:
+            return self._run_calibrated(engine, image, method=TTA_CONSENSUS)
         if method == CONTEXTUAL_BANDIT:
             return self._run_bandit(engine, image)
         if method == TWO_STAGE_PPO:

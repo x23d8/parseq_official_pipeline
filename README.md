@@ -7,739 +7,711 @@ sdk: docker
 app_port: 7860
 suggested_hardware: cpu-basic
 fullWidth: true
-short_description: Detect and recognize Vietnamese license plates with PARSeq.
+short_description: Detect, restore and recognize Vietnamese license plates with PARSeq and PixelRL.
 ---
 
-# PARSeq Official ANPR Pipeline
+# PARSeq ANPR: Calibrated Candidate Selector + PixelRL
 
-Phần reinforcement learning đã được tách sang project độc lập `D:\NEO\rl_pipeline`. Repository này chỉ còn giữ image-processing/PARSeq nền và các NTFS junction tương thích để absolute path trong audit RL lịch sử không bị hỏng.
+Đây là repo của **calibrated candidate selector**, đồng thời là điểm chạy demo tích hợp cho hệ thống nhận dạng biển số gồm:
 
-Pipeline nhận diện ký tự biển số xe Việt Nam bằng PARSeq chính thức, gồm fine-tune, đánh giá iterative refinement, thử nghiệm tiền xử lý ảnh, benchmark các mô hình enhancement dùng weight chính chủ và demo web inference.
+- YOLO phát hiện và cắt biển số từ ảnh cảnh.
+- Các pipeline xử lý ảnh tạo nhiều candidate.
+- PARSeq nhận dạng từng candidate.
+- Calibrated candidate selector chọn kết quả OCR đáng tin cậy.
+- PixelRL/A2C phục hồi ảnh theo từng pixel trước khi đưa vào PARSeq.
 
-Mục tiêu của repo là kiểm tra các cách cải thiện `exact match` và `character accuracy` trước khi đưa ảnh vào PARSeq, đồng thời giữ quy trình đánh giá tách bạch giữa validation và test.
+Hệ thống đầy đủ được chia thành hai repo:
 
-## 1. Tổng quan
+1. [x23d8/calibrated-candidate-selector-for-PARSeq](https://github.com/x23d8/calibrated-candidate-selector-for-PARSeq) — PARSeq, fine-tuning, 65-view inference, calibrated selector, detector và web demo.
+2. [x23d8/PixelRL-PARSeq](https://github.com/x23d8/PixelRL-PARSeq) — PixelRL/A2C, các policy RL, trajectory cache và các artifact phục vụ demo.
 
-Luồng xử lý chính:
+## Quan hệ dependency giữa hai repo
+
+Hai repo là **dependency của nhau ở mức mã nguồn, checkpoint và artifact**, không phải circular dependency giữa hai package trên PyPI.
 
 ```text
-Ảnh đầu vào
-  └─ nếu là ảnh toàn cảnh: YOLO detector tìm vùng biển số
-      └─ crop biển số
-          └─ tiền xử lý ảnh tùy chọn
-              └─ resize RGB 32 x 128
-                  └─ PARSeq OCR
-                      └─ biển số dự đoán + confidence
+calibrated-candidate-selector-for-PARSeq
+    ├── cung cấp PARSeq source + OCR checkpoint + manifest/dataset
+    │                              │
+    │                              ▼
+    │                    PixelRL-PARSeq
+    │                 train/evaluate PixelRL và policy RL
+    │                              │
+    └──── web demo nạp source + checkpoint RL ◄────┘
+                  qua RL_PIPELINE_ROOT
 ```
 
-Các phần chính trong repo:
+Chiều phụ thuộc cụ thể:
+
+- **PixelRL-PARSeq phụ thuộc repo calibrated** để lấy implementation `strhub/PARSeq`, checkpoint PARSeq đã fine-tune, dữ liệu crop biển số và manifest `train/val/test`. Reward OCR-aware và metric CER không thể tái lập đúng nếu thiếu OCR checkpoint tương ứng.
+- **Repo calibrated phụ thuộc PixelRL-PARSeq** khi chạy demo đầy đủ. `demo/rl_runtime.py` dùng `RL_PIPELINE_ROOT` để import PixelRL và tìm các checkpoint của selector, bandit, PPO và PixelRL/A2C.
+- Nếu chỉ fine-tune hoặc chạy PARSeq cơ bản, repo calibrated có thể chạy độc lập.
+- Nếu chỉ huấn luyện phép phục hồi theo pixel, PixelRL có thể chạy với một OCR checkpoint khác. Tuy nhiên kết quả đó không còn là cấu hình của demo này.
+
+Vì vậy, để huấn luyện, đánh giá và chạy toàn bộ demo, hãy clone **cả hai repo cạnh nhau**.
+
+## 1. Cấu trúc thư mục được khuyến nghị
+
+Ví dụ trên Windows:
 
 ```text
-parseq_official_pipeline/
-├── parseq/                         # Mã nguồn PARSeq chính thức được vendor vào repo
-├── train_no_refinement/            # Script fine-tune PARSeq bằng CLI
-├── refinement_finetune/            # Notebook fine-tune và quét refinement
-├── preprocessing_best_config/      # Các cấu hình tiền xử lý ảnh và benchmark
-├── image_processing_study/         # Ablation study 13 phương pháp xử lý ảnh, train CRNN riêng từng phương pháp
-├── demo/                           # Web demo inference + compare preprocessing methods
-├── outputs/                        # Checkpoint, log, kết quả benchmark
-├── requirements.txt
-└── README.md
+D:\work\anpr-suite\
+├── calibrated-candidate-selector-for-PARSeq\
+└── PixelRL-PARSeq\
 ```
 
-## 2. Dữ liệu
+Clone hai repo:
 
-Dữ liệu dùng trong thí nghiệm là dữ liệu private, không được đưa kèm repo. Nếu cần trao đổi hoặc xin quyền truy cập dữ liệu, vui lòng liên hệ:
+```powershell
+$SUITE_ROOT = "D:\work\anpr-suite"
+New-Item -ItemType Directory -Force -Path $SUITE_ROOT
+Set-Location $SUITE_ROOT
 
-```text
-lenguyenquocanh.work@gmail.com
+git clone https://github.com/x23d8/calibrated-candidate-selector-for-PARSeq.git
+git clone https://github.com/x23d8/PixelRL-PARSeq.git
+
+$CALIBRATED_ROOT = Join-Path $SUITE_ROOT "calibrated-candidate-selector-for-PARSeq"
+$PIXELRL_ROOT = Join-Path $SUITE_ROOT "PixelRL-PARSeq"
 ```
 
-Số lượng dữ liệu đã dùng trong lần fine-tune chính:
+Các biến PowerShell trên chỉ tồn tại trong terminal hiện tại. Khi mở terminal mới, hãy khai báo lại `CALIBRATED_ROOT` và `PIXELRL_ROOT`.
 
-| Split | Số ảnh |
-| --- | ---: |
-| Train | 5.844 |
-| Validation | 948 |
-| Test | 963 |
-| Tổng | 7.755 |
+## 2. Yêu cầu hệ thống
 
-Phân bố theo loại biển:
+- Windows 10/11 hoặc Linux.
+- Python 3.10 hoặc 3.11.
+- Git.
+- GPU NVIDIA và CUDA được khuyến nghị cho training.
+- CPU đủ để chạy demo, nhưng 65-view và PixelRL sẽ chậm hơn đáng kể.
+- Docker là tùy chọn.
 
-| Split | xe cơ quan | Ngoại giao | Normal | Other | Quân đội | Dịch vụ |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Train | 1 | 49 | 2.574 | 2.840 | 279 | 101 |
-| Validation | 1 | 3 | 551 | 355 | 26 | 12 |
-| Test | 1 | 5 | 552 | 355 | 38 | 12 |
+Kiểm tra môi trường:
 
-Các nguồn dữ liệu đã được cấu hình trong notebook:
+```powershell
+python --version
+git --version
+nvidia-smi
+```
 
-| Tên nguồn | Loại | Ghi chú |
-| --- | --- | --- |
-| `vietnam_normal` | `normal` | Biển số thường, đã chuẩn hóa nhãn |
-| `icpr_color_filtered` | `xe cơ quan`, `Dịch vụ`, `other` | Dữ liệu lọc theo màu/loại biển |
-| `quandoi` | `quandoi` | Biển quân đội |
-| `ngoaigiao` | `ngoaigiao` | Biển ngoại giao |
+## 3. Cài đặt môi trường Python
 
-Với script CLI, dữ liệu cần có dạng:
+Demo tích hợp import trực tiếp mã nguồn từ cả hai repo, vì vậy cách đơn giản nhất là dùng **một virtual environment chung**:
+
+```powershell
+Set-Location $SUITE_ROOT
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip setuptools wheel
+```
+
+Cài PyTorch phù hợp với CPU/CUDA của máy theo hướng dẫn chính thức của PyTorch, sau đó cài dependency của project:
+
+```powershell
+python -m pip install -r "$CALIBRATED_ROOT\parseq\requirements\train.txt"
+python -m pip install -r "$CALIBRATED_ROOT\requirements.txt"
+python -m pip install -r "$CALIBRATED_ROOT\demo\requirements.txt"
+python -m pip install --no-deps -e "$CALIBRATED_ROOT\parseq"
+```
+
+Repo PixelRL dùng chung stack PyTorch, OpenCV, NumPy, PARSeq và các package đã cài ở trên.
+
+Kiểm tra nhanh:
+
+```powershell
+python -c "import torch, cv2, joblib; print('torch=', torch.__version__, 'cuda=', torch.cuda.is_available())"
+python -c "import strhub; print('PARSeq/strhub import OK')"
+```
+
+### Chia sẻ PARSeq source cho PixelRL
+
+Một số entrypoint PixelRL tìm `parseq` bên trong chính repo PixelRL. Trên Windows có thể tạo junction để hai repo dùng đúng một bản source:
+
+```powershell
+if (-not (Test-Path "$PIXELRL_ROOT\parseq")) {
+    New-Item -ItemType Junction `
+        -Path "$PIXELRL_ROOT\parseq" `
+        -Target "$CALIBRATED_ROOT\parseq"
+}
+
+if (-not (Test-Path "$PIXELRL_ROOT\parseq_rl_deblur_data\parseq")) {
+    New-Item -ItemType Junction `
+        -Path "$PIXELRL_ROOT\parseq_rl_deblur_data\parseq" `
+        -Target "$CALIBRATED_ROOT\parseq"
+}
+```
+
+Không tạo junction nếu đích đã tồn tại. Trên Linux, dùng symbolic link tương đương.
+
+## 4. Chuẩn bị dữ liệu và checkpoint
+
+### 4.1 Dữ liệu fine-tune PARSeq
+
+Script `train_no_refinement/parseq_official_anpr_pipeline.py` nhận:
 
 ```text
-data_root/
+dataset/
 ├── images/
-│   ├── plate_0001.jpg
-│   └── plate_0002.jpg
+│   ├── image_0001.jpg
+│   └── ...
 ├── train.csv
 ├── val.csv
 └── test.csv
 ```
 
-Mỗi file CSV cần hai cột:
+Mỗi CSV cần hai cột:
 
 ```csv
 image_path,label
-images/plate_0001.jpg,51A4032
-images/plate_0002.jpg,80A00538
+images/image_0001.jpg,59D105813
 ```
 
-Quy tắc nhãn:
-
-- Chỉ dùng ký tự `0-9` và `A-Z`.
-- Nhãn được chuyển sang chữ hoa.
-- Nhãn rỗng hoặc dài hơn 12 ký tự sẽ bị loại.
-- Test set phải được khóa trước, không dùng để chọn tham số.
-
-## 3. Cài đặt môi trường
-
-Khuyến nghị dùng Python 3.10 trở lên và GPU NVIDIA. Có thể chạy CPU, nhưng fine-tune và benchmark ML sẽ chậm hơn đáng kể.
-
-Tạo môi trường ảo trên Windows:
+Tạo các manifest dùng đường dẫn tuyệt đối cho selector/RL:
 
 ```powershell
-python -m venv .venv
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+$DATA_ROOT = "$CALIBRATED_ROOT\dataset"
+$MANIFEST_ROOT = "$CALIBRATED_ROOT\outputs\manifests"
+New-Item -ItemType Directory -Force -Path $MANIFEST_ROOT
+
+foreach ($split in @("train", "val", "test")) {
+    $rows = Import-Csv "$DATA_ROOT\$split.csv" | ForEach-Object {
+        [PSCustomObject]@{
+            image_path = [IO.Path]::GetFullPath((Join-Path $DATA_ROOT $_.image_path))
+            target     = $_.label
+            split      = $split
+        }
+    }
+    $rows | Export-Csv "$MANIFEST_ROOT\$split.csv" -NoTypeInformation -Encoding utf8
+}
 ```
 
-Cài thêm kernel để chạy notebook:
+Quy tắc quan trọng:
+
+- Một biển số hoặc một ảnh gốc chỉ được thuộc một split.
+- Hyperparameter và threshold chỉ được chọn trên `val`.
+- Chỉ báo cáo `test` sau khi đã khóa pipeline.
+- Chuẩn hóa nhãn phải giống nhau giữa training, selector và demo.
+
+### 4.2 Dữ liệu PixelRL
+
+Dataset builder của PixelRL đọc ba miền màu:
+
+```text
+color_filtered/
+├── blue/
+│   ├── labels.txt
+│   └── *.jpg
+├── other/
+│   ├── labels.txt
+│   └── *.jpg
+└── yellow/
+    ├── labels.txt
+    └── *.jpg
+```
+
+Mỗi dòng trong `labels.txt` có dạng tab-separated:
+
+```text
+image_0001.jpg	59D105813
+```
+
+Đặt dữ liệu tại:
+
+```text
+PixelRL-PARSeq/parseq_rl_deblur_data/color_filtered/
+```
+
+Hoặc chia sẻ dữ liệu từ repo calibrated bằng junction:
 
 ```powershell
-pip install jupyterlab ipykernel
-python -m ipykernel install --user --name parseq-anpr --display-name "PARSeq ANPR"
+if (-not (Test-Path "$PIXELRL_ROOT\parseq_rl_deblur_data\color_filtered")) {
+    New-Item -ItemType Junction `
+        -Path "$PIXELRL_ROOT\parseq_rl_deblur_data\color_filtered" `
+        -Target "$CALIBRATED_ROOT\dataset\color_filtered"
+}
 ```
 
-Kiểm tra PyTorch và CUDA:
+Dữ liệu huấn luyện riêng tư và các checkpoint lớn có thể không được commit vào Git. Nếu một đường dẫn trong hướng dẫn không tồn tại, hãy chuẩn bị artifact đó trước khi chuyển sang bước tiếp theo.
+
+## 5. Fine-tune PARSeq
+
+### 5.1 Chạy bằng script
 
 ```powershell
-python -c "import torch; print(torch.__version__); print('CUDA:', torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+Set-Location $CALIBRATED_ROOT
+
+python train_no_refinement\parseq_official_anpr_pipeline.py `
+    --data-root "$CALIBRATED_ROOT\dataset" `
+    --output-dir "$CALIBRATED_ROOT\outputs\refinement_finetune" `
+    --epochs 30 `
+    --batch-size 16 `
+    --lr 1e-5 `
+    --device cuda
 ```
 
-Nếu `CUDA: False` trên máy có GPU NVIDIA, cần cài lại PyTorch đúng phiên bản CUDA trước khi train.
+Checkpoint chính được dùng trong các bước sau:
 
-## 4. Fine-tune bằng notebook chính
+```text
+outputs/refinement_finetune/best_official_parseq_anpr.pt
+```
 
-Notebook gốc:
+Có thể chạy notebook tương đương:
 
 ```text
 refinement_finetune/PARSeq_Official_ANPR_Refinement_Finetune.ipynb
 ```
 
-Chạy:
+Nếu hết VRAM, giảm `--batch-size`. Khi không có GPU, đổi `--device cpu`.
+
+### 5.2 Kiểm tra checkpoint
 
 ```powershell
-jupyter lab refinement_finetune\PARSeq_Official_ANPR_Refinement_Finetune.ipynb
+$PARSEQ_CKPT = "$CALIBRATED_ROOT\outputs\refinement_finetune\best_official_parseq_anpr.pt"
+Test-Path $PARSEQ_CKPT
 ```
 
-Trong notebook, kiểm tra các biến cấu hình quan trọng:
+Lệnh phải trả về `True` trước khi train selector hoặc PixelRL.
 
-| Biến | Ý nghĩa |
-| --- | --- |
-| `DATASET_DIR` | Thư mục dữ liệu chính |
-| `dataset_sources` | Danh sách nguồn dữ liệu và loại biển |
-| `epochs` | Số epoch fine-tune |
-| `batch_size` | Batch size |
-| `preprocess` | Bật/tắt tiền xử lý trong train |
-| `refine_iters` | Số vòng iterative refinement |
+## 6. Train 65-view calibrated candidate selector
 
-Notebook thực hiện:
+Selector không học trực tiếp từ ảnh gốc. Quy trình gồm hai pha:
 
-1. Tải kiến trúc và weight PARSeq chính thức.
-2. Chuẩn hóa dữ liệu nhiều loại biển.
-3. Đánh giá PARSeq trước fine-tune.
-4. Fine-tune bằng PLM loss.
-5. Chọn checkpoint tốt nhất theo validation exact match.
-6. Quét `refine_iters = 0, 1, 2, 3`.
-7. Đánh giá cuối trên test set.
-8. Xuất prediction, metric theo loại biển và ảnh nhận diện sai.
+1. **Phase 1:** chạy PARSeq trên 65 view/candidate và ghi prediction, confidence cùng feature của từng view.
+2. **Phase 2:** dùng prediction out-of-fold trên validation để calibrate confidence và học quy tắc chọn candidate.
 
-Kết quả chính hiện có nằm tại:
+### 6.1 Chuẩn bị manifest
+
+Mỗi manifest cần tối thiểu:
+
+```csv
+image_path,target
+D:/data/plates/val/001.jpg,59D105813
+```
+
+Nếu đã chạy bộ evaluation đầy đủ của repo, có thể dùng trực tiếp:
 
 ```text
-outputs/refinement_finetune/
+outputs/refinement_finetune/eval_val_predictions_best_refine.csv
+outputs/refinement_finetune/eval_test_predictions_best_refine.csv
 ```
 
-Các file quan trọng:
-
-| File | Ý nghĩa |
-| --- | --- |
-| `best_official_parseq_anpr.pt` | Checkpoint tốt nhất |
-| `summary.json` | Cấu hình và metric tổng hợp |
-| `history.csv` | Lịch sử train theo epoch |
-| `refinement_sweep_val.csv` | Kết quả refinement trên validation |
-| `refinement_sweep_test.csv` | Kết quả refinement trên test |
-| `eval_val_predictions_best_refine.csv` | Prediction validation |
-| `eval_test_predictions_best_refine.csv` | Prediction test |
-| `eval_*_by_plate_type.csv` | Metric theo loại biển |
-
-## 5. Fine-tune bằng CLI
-
-Script CLI:
+Hai script Phase 1/2 hiện còn tạo báo cáo riêng cho nhóm ảnh khó lịch sử và cần file:
 
 ```text
-train_no_refinement/parseq_official_anpr_pipeline.py
+outputs/testing/irrecoverable_wrong_images_8pipelines/irrecoverable_wrong_images_8pipelines.csv
 ```
 
-Fine-tune cơ bản:
+Đây là dependency phục vụ báo cáo, không phải dữ liệu dùng để fit selector. File cần các cột `file,target,best_prediction,image_path,copied_image_path`. Nếu tái lập trên dataset khác, hãy tạo danh sách hard cases tương ứng từ baseline test errors.
+
+### 6.2 Phase 1 — tạo 65-view predictions
+
+Nên chạy entrypoint trong PixelRL repo để artifact nằm đúng cấu trúc mà demo tích hợp sử dụng:
 
 ```powershell
-$DATA_ROOT = "D:\path\to\data_root"
+Set-Location $PIXELRL_ROOT
+$HARD_CASES = "$CALIBRATED_ROOT\outputs\testing\irrecoverable_wrong_images_8pipelines\irrecoverable_wrong_images_8pipelines.csv"
+$MANIFEST_ROOT = "$CALIBRATED_ROOT\outputs\manifests"
 
-python train_no_refinement\parseq_official_anpr_pipeline.py `
-  --data-root $DATA_ROOT `
-  --output-dir outputs\train_no_refinement `
-  --epochs 30 `
-  --batch-size 16 `
-  --lr 1e-5 `
-  --refine-iters 0 `
-  --device cuda
+python reinforcement_learning\run_phase.py phase1 `
+    --checkpoint "$PARSEQ_CKPT" `
+    --val-manifest "$MANIFEST_ROOT\val.csv" `
+    --test-manifest "$MANIFEST_ROOT\test.csv" `
+    --irrecoverable-csv "$HARD_CASES" `
+    --output-dir "$PIXELRL_ROOT\reinforcement_learning\phase_1_multiscale_tta\results" `
+    --batch-size 64 `
+    --num-workers 0 `
+    --refine-iters 2 `
+    --device cuda
 ```
 
-Fine-tune với ảnh đã tiền xử lý:
+Nếu prediction của 65 view đã tồn tại và chỉ muốn tạo lại report/selector:
 
 ```powershell
-python train_no_refinement\parseq_official_anpr_pipeline.py `
-  --data-root $DATA_ROOT `
-  --output-dir outputs\train_clahe_clip1_tile4 `
-  --epochs 30 `
-  --batch-size 16 `
-  --lr 1e-5 `
-  --preprocess `
-  --preprocess-config clahe_clip1_tile4 `
-  --refine-iters 0 `
-  --device cuda
+python reinforcement_learning\run_phase.py phase1 `
+    --checkpoint "$PARSEQ_CKPT" `
+    --val-manifest "$MANIFEST_ROOT\val.csv" `
+    --test-manifest "$MANIFEST_ROOT\test.csv" `
+    --irrecoverable-csv "$HARD_CASES" `
+    --output-dir "$PIXELRL_ROOT\reinforcement_learning\phase_1_multiscale_tta\results" `
+    --reuse-predictions
 ```
 
-Có thể thay `--preprocess-config` bằng các cấu hình đã cải thiện như:
-
-```text
-adaptive_noise_3way
-clahe_rl_deblur_bilateral
-clahe_clip1_tile4
-raw_rgb
-homomorphic_filter
-rl_deblur_bilateral_lowpass
-```
-
-Xem toàn bộ tham số:
+### 6.3 Phase 2 — fit calibrated selector
 
 ```powershell
-python train_no_refinement\parseq_official_anpr_pipeline.py --help
+python reinforcement_learning\run_phase.py phase2 `
+    --phase1-dir "$PIXELRL_ROOT\reinforcement_learning\phase_1_multiscale_tta\results" `
+    --irrecoverable-csv "$HARD_CASES" `
+    --output-dir "$PIXELRL_ROOT\reinforcement_learning\phase_2_calibrated_selector\results" `
+    --folds 5
 ```
 
-Output của CLI:
-
-| File | Ý nghĩa |
-| --- | --- |
-| `best_official_parseq_anpr.pt` | Checkpoint tốt nhất theo validation |
-| `history.csv` | Loss và metric theo epoch |
-| `test_predictions.csv` | Prediction từng ảnh test |
-| `summary.json` | Cấu hình và metric cuối |
-
-## 6. Kết quả fine-tune hiện tại
-
-Checkpoint tốt nhất:
+Artifact mà web demo tự động tìm:
 
 ```text
-outputs/refinement_finetune/best_official_parseq_anpr.pt
+PixelRL-PARSeq/
+└── reinforcement_learning/
+    └── phase_2_calibrated_selector/
+        └── results/
+            └── phase2_selector.joblib
 ```
 
-Cấu hình chính:
-
-| Thành phần | Giá trị |
-| --- | --- |
-| Model | PARSeq official |
-| Pretrained | Có |
-| Charset | `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ` |
-| Image size | `32 x 128` |
-| Max label length | 12 |
-| Epochs | 30 |
-| Best epoch | 29 |
-| Batch size | 16 |
-| Learning rate | `1e-5` |
-| Weight decay | `1e-4` |
-| Augmentation | Có |
-| AMP | Có |
-| Seed | 42 |
-
-Kết quả refinement sau fine-tune:
-
-| Split | Refine iters | Samples | Exact match | Character accuracy | CER |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Validation | 0 | 948 | 95,89% | 99,40% | 0,60% |
-| Validation | 1 | 948 | 95,99% | 99,45% | 0,55% |
-| Validation | 2 | 948 | 95,99% | 99,43% | 0,57% |
-| Validation | 3 | 948 | 95,99% | 99,40% | 0,60% |
-| Test | 0 | 963 | 94,29% | 99,13% | 0,87% |
-| Test | 1 | 963 | 94,39% | 99,16% | 0,84% |
-| Test | 2 | 963 | 94,50% | 99,17% | 0,83% |
-| Test | 3 | 963 | 94,50% | 99,17% | 0,83% |
-
-Theo validation, `refine_iters=1` có CER tốt nhất. Trên test, `refine_iters=2` và `3` cho exact match cao nhất. Khi benchmark preprocessing, repo đang dùng `refine_iters=2`.
-
-Kết quả test theo loại biển:
-
-| Loại biển | Samples | Exact match | Character accuracy |
-| --- | ---: | ---: | ---: |
-| xe cơ quan | 1 | 100,00% | 100,00% |
-| Ngoại giao | 5 | 100,00% | 100,00% |
-| Normal | 552 | 93,48% | 98,98% |
-| Other | 355 | 97,18% | 99,60% |
-| Quân đội | 38 | 86,84% | 97,78% |
-| Dịch vụ | 12 | 75,00% | 96,88% |
-
-Lưu ý: số mẫu `xe cơ quan` và `ngoaigiao` trong test còn nhỏ, nên không nên suy luận quá mạnh từ tỷ lệ 100%.
-
-## 7. Benchmark tiền xử lý ảnh
-
-Mã tiền xử lý nằm trong:
-
-```text
-preprocessing_best_config/preprocessing.py
-```
-
-Script benchmark:
-
-```text
-preprocessing_best_config/find_best_preprocessing_config.py
-```
-
-Chạy benchmark:
+Kiểm tra:
 
 ```powershell
-python preprocessing_best_config\find_best_preprocessing_config.py `
-  --run-dir outputs\refinement_finetune `
-  --output-dir outputs\testing\preprocessing_course_benchmark `
-  --refine-iters 2 `
-  --top-k 3 `
-  --batch-size 64 `
-  --device cuda
+Test-Path "$PIXELRL_ROOT\reinforcement_learning\phase_2_calibrated_selector\results\phase2_selector.joblib"
 ```
 
-Benchmark preprocessing hiện tại dùng test manifest 411 ảnh trong các thư mục `outputs/testing/preprocessing_*_benchmark/`. Đây là tập dùng để so sánh phương pháp tiền xử lý, khác với test 963 ảnh của lần fine-tune chính.
+Không fit calibrator hoặc chọn threshold trên test set. Nếu làm vậy, accuracy test sẽ bị optimistic và không còn là đánh giá holdout.
 
-Các nhóm đã thử:
+## 7. Train PixelRL/A2C
 
-| Nhóm | Ví dụ |
-| --- | --- |
-| Tăng tương phản cơ bản | `autocontrast`, `percentile_stretch_2_98`, `gamma_1_1` |
-| CLAHE | `clahe_clip1_tile4`, `clahe_clip05_tile4`, `clahe_clip1_tile2` |
-| Lọc nhiễu | bilateral, Gaussian, median, NLM, wavelet denoise |
-| Khôi phục ảnh | Richardson-Lucy deblur, Wiener deconvolution |
-| Tần số và chiếu sáng | `homomorphic_filter`, Retinex |
-| Tách biên/tăng nét | unsharp, Laplacian, Sobel fusion, top-hat/black-hat |
-| Tách vùng ký tự | connected components, content crop, component mask/fusion |
-| Tiền xử lý thích ứng | `adaptive_noise_3way`, `adaptive_brightness_3way`, `adaptive_quality_cv` |
-| Mô hình ML chính chủ | Real-ESRGAN, Restormer, Zero-DCE |
+PixelRL coi mỗi pixel là một agent. Policy chọn phép biến đổi cục bộ qua nhiều bước; A2C cập nhật policy/value dựa trên reward phục hồi. RMC giúp policy quan sát vùng lân cận thay vì ra quyết định chỉ từ một pixel độc lập.
 
-Kết quả test của các phương pháp tốt nhất:
-
-| Phương pháp | Samples | Exact match | Character accuracy | Ghi chú |
-| --- | ---: | ---: | ---: | --- |
-| `adaptive_noise_3way` | 411 | 93,43% | 98,99% | Router theo nhiễu, exact tốt nhất |
-| `clahe_rl_deblur_bilateral` | 411 | 93,43% | 98,93% | CLAHE nhẹ + Richardson-Lucy + bilateral |
-| `clahe_clip1_tile4` | 411 | 93,19% | 99,08% | Char accuracy tốt nhất, đơn giản, nhanh |
-| `raw_rgb` | 411 | 93,19% | 98,99% | Đối chứng không tiền xử lý |
-| `zero_dce` | 411 | 92,94% | 98,96% | ML enhancement, không hơn raw RGB |
-| `restormer_motion_deblur_native` | 411 | 92,94% | 98,96% | ML deblur, chậm hơn nhiều |
-| `train_baseline` | 411 | 91,97% | 98,87% | Baseline tiền xử lý lúc train |
-
-Kết luận thực nghiệm:
-
-- `adaptive_noise_3way` và `clahe_rl_deblur_bilateral` cho exact match cao nhất trên test 411 ảnh.
-- `clahe_clip1_tile4` có character accuracy cao nhất và là lựa chọn gọn, dễ triển khai.
-- `raw_rgb` rất mạnh, cần giữ làm mốc đối chứng.
-- Các mô hình ML enhancement tổng quát chưa vượt được CLAHE hoặc raw RGB.
-- Tách ký tự bằng connected components không phù hợp với checkpoint PARSeq hiện tại vì PARSeq nhận diện toàn chuỗi, không phải classifier từng ký tự.
-- Test 411 ảnh đã được dùng để xác nhận nhiều vòng thí nghiệm, nên cần holdout mới trước khi chốt cấu hình production.
-
-Các report liên quan:
-
-| File | Nội dung |
-| --- | --- |
-| `preprocessing_best_config/EXPERIMENT_REPORT.md` | Benchmark tiền xử lý truyền thống |
-| `preprocessing_best_config/COMBINATION_EXPERIMENT_REPORT.md` | Tổ hợp deblur, low-pass, edge, component |
-| `preprocessing_best_config/ADAPTIVE_PREPROCESSING_REPORT.md` | Router thích ứng theo đặc trưng ảnh |
-| `preprocessing_best_config/ML_OFFICIAL_BENCHMARK_REPORT.md` | Benchmark Real-ESRGAN, Restormer, Zero-DCE |
-| `outputs/testing/tong_hop_phuong_phap_cai_thien_parseq.csv` | Bảng tổng hợp các phương pháp đã cải thiện |
-
-## 8. Benchmark mô hình ML chính chủ
-
-Script:
-
-```text
-preprocessing_best_config/ml_official_preprocessing_benchmark.py
-```
-
-Các mô hình đã dùng:
-
-| Model | Nhiệm vụ | Nguồn |
-| --- | --- | --- |
-| Real-ESRGAN x2plus | Super-resolution | Repository chính thức `xinntao/Real-ESRGAN` |
-| Restormer motion deblur | Deblur | Repository chính thức `swz30/Restormer` |
-| Zero-DCE Epoch99 | Low-light enhancement | Repository chính thức `Li-Chongyi/Zero-DCE` |
-
-Chạy benchmark:
+### 7.1 Tạo dataset
 
 ```powershell
-python preprocessing_best_config\ml_official_preprocessing_benchmark.py `
-  --run-dir outputs\refinement_finetune `
-  --output-dir outputs\testing\ml_official_preprocessing_benchmark `
-  --refine-iters 2 `
-  --top-k-ml 2 `
-  --batch-size 64 `
-  --ml-batch-size 8 `
-  --device cuda
+Set-Location "$PIXELRL_ROOT\parseq_rl_deblur_data"
+
+python -m rl_deblur.make_dataset `
+    --output-dir outputs\rl_deblur\dataset `
+    --seed 42 `
+    --val-ratio 0.1 `
+    --test-ratio 0.1
 ```
 
-Script kiểm tra SHA-256 trước khi load model. Không dùng weight từ mirror không chính thức.
+Không thay seed hoặc chia lại dữ liệu giữa các lần thử nếu muốn so sánh công bằng.
 
-Kết quả xác nhận trên test 411 ảnh:
-
-| Phương pháp | Exact match | Character accuracy |
-| --- | ---: | ---: |
-| `clahe_clip1_tile4` | 93,19% | 99,08% |
-| `raw_rgb` | 93,19% | 98,99% |
-| `zero_dce` | 92,94% | 98,96% |
-| `restormer_motion_deblur_native` | 92,94% | 98,96% |
-| `train_baseline` | 91,97% | 98,87% |
-
-Kết luận: không nên đưa Real-ESRGAN, Restormer hoặc Zero-DCE vào toàn bộ luồng inference mặc định cho checkpoint hiện tại.
-
-## 9. Notebook trực quan hóa tiền xử lý
-
-Notebook:
-
-```text
-preprocessing_best_config/plot_improved_preprocessing_methods.ipynb
-```
-
-Notebook này plot ảnh trước và sau xử lý của từng phương pháp đã cải thiện accuracy, kèm mô tả lý do phương pháp có thể giúp PARSeq nhận diện tốt hơn.
-
-Nếu gặp lỗi `Unknown preprocessing config`, kiểm tra tên config trong:
-
-```text
-preprocessing_best_config/preprocessing.py
-```
-
-Một số phương pháp ML như `zero_dce` không phải config thuần trong `preprocessing.py`; chúng được chạy qua benchmark ML riêng.
-
-## 10. Chạy demo web
-
-Demo nằm trong:
-
-```text
-demo/
-```
-
-Image Docker CPU đã được cấu hình để chạy cùng OCR checkpoint và plate detector
-trên mọi Docker host:
+### 7.2 Train policy
 
 ```powershell
-docker compose up --build
+python -m rl_deblur.train `
+    --dataset-dir outputs\rl_deblur\dataset `
+    --output-dir outputs\rl_deblur `
+    --epochs 150 `
+    --batch-size 32 `
+    --num-steps 5 `
+    --gamma 0.95 `
+    --lr 1e-4 `
+    --channels 64 `
+    --rmc-kernel-size 9 `
+    --ocr-checkpoint "$PARSEQ_CKPT" `
+    --device cuda
 ```
 
-Mở `http://localhost:7860`. Xem hướng dẫn deploy và cấu hình cloud tại
-[`demo/README.md`](demo/README.md).
+Checkpoint chính:
 
-Chức năng chính:
+```text
+parseq_rl_deblur_data/outputs/rl_deblur/checkpoints/best_deblur_agent.pt
+```
 
-- Upload ảnh toàn cảnh hoặc ảnh crop biển số.
-- Tự detect vùng biển số bằng YOLO nếu bật `Auto locate`.
-- Chọn một phương pháp tiền xử lý để OCR.
-- Compare tất cả phương pháp đã cải thiện, sắp xếp theo độ chính xác benchmark.
-- Hiển thị ảnh gốc, crop, ảnh sau tiền xử lý, prediction, confidence và mô tả phương pháp.
-
-Cài dependency demo:
+Tiếp tục một run bị dừng:
 
 ```powershell
-pip install -r requirements.txt
-pip install -r demo\requirements.txt
+python -m rl_deblur.train `
+    --dataset-dir outputs\rl_deblur\dataset `
+    --output-dir outputs\rl_deblur `
+    --epochs 150 `
+    --ocr-checkpoint "$PARSEQ_CKPT" `
+    --resume-checkpoint outputs\rl_deblur\checkpoints\last_training_state.pt `
+    --device cuda
 ```
 
-Chạy server:
+Mặc định:
+
+```text
+--cer-reward-weight 0
+--logconf-reward-weight 0
+```
+
+được dùng để tái lập objective phục hồi ảnh thuần túy. Muốn huấn luyện OCR-aware, đặt hai trọng số khác 0:
+
+```powershell
+python -m rl_deblur.train `
+    --dataset-dir outputs\rl_deblur\dataset `
+    --output-dir outputs\rl_deblur_ocr_aware `
+    --epochs 150 `
+    --ocr-checkpoint "$PARSEQ_CKPT" `
+    --cer-reward-weight 0.1 `
+    --logconf-reward-weight 0.01 `
+    --device cuda
+```
+
+Hai giá trị trên chỉ là điểm khởi đầu để thử nghiệm, không phải giá trị tối ưu mặc định. Hãy chọn chúng bằng validation CER/sequence accuracy; reward OCR quá lớn có thể làm ảnh trông xấu hơn hoặc khai thác sai confidence của OCR.
+
+### 7.3 Đánh giá PixelRL
+
+Đánh giá validation trước:
+
+```powershell
+$PIXELRL_CKPT = "$PIXELRL_ROOT\parseq_rl_deblur_data\outputs\rl_deblur\checkpoints\best_deblur_agent.pt"
+
+python -m rl_deblur.evaluate `
+    --dataset-dir outputs\rl_deblur\dataset `
+    --agent-checkpoint "$PIXELRL_CKPT" `
+    --ocr-checkpoint "$PARSEQ_CKPT" `
+    --output-dir outputs\rl_deblur\evaluation_val `
+    --split val `
+    --device cuda
+```
+
+Sau khi đã khóa checkpoint và hyperparameter, đánh giá test:
+
+```powershell
+python -m rl_deblur.evaluate `
+    --dataset-dir outputs\rl_deblur\dataset `
+    --agent-checkpoint "$PIXELRL_CKPT" `
+    --ocr-checkpoint "$PARSEQ_CKPT" `
+    --output-dir outputs\rl_deblur\evaluation_test `
+    --split test `
+    --device cuda
+```
+
+Nên theo dõi đồng thời:
+
+- Sequence accuracy và CER của PARSeq.
+- PSNR/SSIM của ảnh phục hồi.
+- Confidence đã calibrate, không chỉ raw confidence.
+- Latency và số bước PixelRL.
+
+Ảnh có PSNR tốt hơn chưa chắc cho OCR tốt hơn; mục tiêu cuối của pipeline là đọc đúng chuỗi biển số.
+
+## 8. Optional: train Bandit và PPO restoration policy
+
+Web demo còn hỗ trợ bandit router và PPO. Các policy này chọn pipeline/candidate ở mức toàn ảnh, khác với PixelRL ra hành động theo pixel.
+
+Tạo trajectory cache:
+
+```powershell
+Set-Location $PIXELRL_ROOT
+
+python rl_restoration\build_trajectory_cache.py `
+    --checkpoint "$PARSEQ_CKPT" `
+    --manifest "$MANIFEST_ROOT\train.csv" `
+    --split train `
+    --output-dir outputs\reproduction\trajectory_cache
+
+python rl_restoration\build_trajectory_cache.py `
+    --checkpoint "$PARSEQ_CKPT" `
+    --manifest "$MANIFEST_ROOT\val.csv" `
+    --split val `
+    --output-dir outputs\reproduction\trajectory_cache
+```
+
+Train bandit router:
+
+```powershell
+python rl_restoration\train_router.py `
+    --cache-dir outputs\reproduction\trajectory_cache `
+    --seed 123 `
+    --output-dir outputs\rl_restoration\router_seed_123
+```
+
+Train PPO với bandit làm teacher prior:
+
+```powershell
+python rl_restoration\train_ppo.py `
+    --cache-dir outputs\reproduction\trajectory_cache `
+    --teacher-router outputs\rl_restoration\router_seed_123\best_reward_router.pt `
+    --seed 123 `
+    --output-dir outputs\rl_restoration\ppo_prior_seed_123
+```
+
+Đây là hai đường dẫn mặc định mà demo tìm:
+
+```text
+outputs/rl_restoration/router_seed_123/best_reward_router.pt
+outputs/rl_restoration/ppo_prior_seed_123/best_ppo_restoration_policy.pt
+```
+
+Liệt kê toàn bộ phase/entrypoint:
+
+```powershell
+python reinforcement_learning\run_phase.py --list
+```
+
+## 9. Chạy web demo tích hợp
+
+### 9.1 Cấu hình
+
+```powershell
+Set-Location $CALIBRATED_ROOT
+
+$env:RL_PIPELINE_ROOT = $PIXELRL_ROOT
+$env:PARSEQ_CHECKPOINT = $PARSEQ_CKPT
+$env:RL_DEBLUR_CHECKPOINT = $PIXELRL_CKPT
+$env:PLATE_DETECTOR_CHECKPOINT = "$CALIBRATED_ROOT\weights\plate_detector.pt"
+$env:PARSEQ_DEVICE = "cuda"
+$env:PARSEQ_REFINE_ITERS = "2"
+$env:PLATE_DETECTOR_CONFIDENCE = "0.25"
+```
+
+`RL_DEBLUR_CHECKPOINT` được khai báo tường minh vì checkpoint sau khi train nằm trong subproject `parseq_rl_deblur_data`, trong khi runtime cũng hỗ trợ một layout artifact cũ ở `PixelRL-PARSeq/outputs/rl_deblur`.
+
+### 9.2 Khởi động
 
 ```powershell
 python -m uvicorn demo.app:app --host 127.0.0.1 --port 8000
 ```
 
-Mở trình duyệt:
+Mở:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Checkpoint mặc định:
-
-```text
-outputs/refinement_finetune/best_official_parseq_anpr.pt
-```
-
-Detector mặc định được tự dò nếu tồn tại:
-
-```text
-..\runs\yolo26_anpr\plate_detect_archive_yolo26m\weights\best.pt
-```
-
-Có thể cấu hình bằng biến môi trường:
+Kiểm tra health endpoint:
 
 ```powershell
-$env:PARSEQ_CHECKPOINT = "D:\path\to\best_official_parseq_anpr.pt"
-$env:PARSEQ_DEVICE = "cuda"
-$env:PARSEQ_REFINE_ITERS = "2"
-$env:PLATE_DETECTOR_CHECKPOINT = "D:\path\to\plate_detector.pt"
-$env:PLATE_DETECTOR_CONFIDENCE = "0.25"
-
-python -m uvicorn demo.app:app --host 127.0.0.1 --port 8000
+Invoke-RestMethod http://127.0.0.1:8000/api/health
 ```
 
-Ghi chú:
+Chạy unit/smoke test:
 
-- Nếu upload ảnh đã crop sát biển số, có thể tắt `Auto locate`.
-- Nếu upload ảnh toàn cảnh, nên bật `Auto locate` để YOLO crop biển trước khi OCR.
-- Nếu không có detector, demo fallback sang OCR trực tiếp trên ảnh upload, độ chính xác sẽ giảm với ảnh toàn cảnh.
+```powershell
+python -m unittest demo.test_demo
+```
 
-## 11. Các file output nên xem
+### 9.3 Cách sử dụng
 
-| Đường dẫn | Nội dung |
-| --- | --- |
-| `outputs/refinement_finetune/summary.json` | Tổng hợp fine-tune chính |
-| `outputs/refinement_finetune/history.csv` | Lịch sử train |
-| `outputs/refinement_finetune/refinement_sweep_test.csv` | Test theo refinement |
-| `outputs/testing/preprocessing_course_benchmark/validation_results.csv` | Sweep tiền xử lý truyền thống |
-| `outputs/testing/preprocessing_combinations_benchmark/test_finalists_results.csv` | Kết quả tổ hợp nhiều bước |
-| `outputs/testing/preprocessing_adaptive_benchmark/test_finalists_results.csv` | Kết quả router thích ứng |
-| `outputs/testing/ml_official_preprocessing_benchmark/test_finalists_results.csv` | Kết quả ML enhancement |
-| `outputs/testing/tong_hop_phuong_phap_cai_thien_parseq.csv` | Tổng hợp phương pháp cải thiện |
+- Upload **ảnh cảnh đầy đủ**: bật tự động phát hiện biển số.
+- Upload **ảnh crop biển số**: có thể tắt detector để tránh crop lần hai.
+- Chọn `Calibrated Candidate` để chạy selector 65-view.
+- Chọn `PixelRL/A2C` để phục hồi ảnh bằng policy theo pixel.
+- Chọn bandit/PPO khi các checkpoint tương ứng đã tồn tại.
+- So sánh prediction, confidence, ảnh đã xử lý và thời gian chạy.
 
-## 12. Quy tắc đánh giá
+Một method không xuất hiện hoặc báo unavailable thường có nghĩa artifact của method đó chưa tồn tại dưới `RL_PIPELINE_ROOT`.
 
-- Chọn checkpoint, `refine_iters` và preprocessing bằng validation.
-- Chỉ dùng test để xác nhận cấu hình đã khóa.
-- Luôn báo cáo `exact match`, `character accuracy` và `CER`.
-- So sánh các phương pháp trên cùng checkpoint, cùng split, cùng manifest.
-- Không chọn lại ngưỡng hoặc cấu hình dựa trên test set đã dùng nhiều lần.
+## 10. Chạy bằng Docker
 
-Định nghĩa metric:
+Build image từ repo calibrated:
 
-| Metric | Ý nghĩa |
-| --- | --- |
-| Exact match | Dự đoán đúng toàn bộ chuỗi biển số |
-| Character accuracy | `1 - tổng edit distance / tổng số ký tự` |
-| CER | `tổng edit distance / tổng số ký tự` |
+```powershell
+docker build -t parseq-anpr-demo "$CALIBRATED_ROOT"
+```
 
-## 13. Lỗi thường gặp
+Mount PixelRL repo vào container:
 
-Không import được `strhub` hoặc `preprocessing`:
+```powershell
+docker run --rm -p 7860:7860 `
+    -e RL_PIPELINE_ROOT=/opt/pixelrl `
+    -e RL_DEBLUR_CHECKPOINT=/opt/pixelrl/parseq_rl_deblur_data/outputs/rl_deblur/checkpoints/best_deblur_agent.pt `
+    -v "${PIXELRL_ROOT}:/opt/pixelrl:ro" `
+    parseq-anpr-demo
+```
 
-- Chạy lệnh từ thư mục root `parseq_official_pipeline/`.
-- Không chạy trực tiếp file từ một working directory khác nếu chưa cấu hình `PYTHONPATH`.
-- Các script chính đã tự thêm `parseq/` và `preprocessing_best_config/` vào `sys.path`.
-
-Không tìm thấy checkpoint:
-
-- Kiểm tra `outputs/refinement_finetune/best_official_parseq_anpr.pt`.
-- Với demo, đặt lại `$env:PARSEQ_CHECKPOINT`.
-- Với benchmark, truyền `--run-dir`, hoặc truyền trực tiếp `--checkpoint`, `--val-manifest`, `--test-manifest`.
-
-CUDA hết bộ nhớ:
-
-- Giảm `--batch-size`.
-- Với benchmark ML, giảm thêm `--ml-batch-size`.
-- Có thể chuyển sang `--device cpu` để kiểm tra logic, nhưng tốc độ sẽ chậm.
-
-Ảnh toàn cảnh OCR sai:
-
-- PARSeq là model nhận diện chuỗi trên crop biển số, không phải detector.
-- Cần bật detector trong demo hoặc crop biển trước khi đưa vào OCR.
-
-Kết quả chạy lại hơi khác:
-
-- Giữ nguyên `--seed`, split dữ liệu, checkpoint, preprocessing và `refine_iters`.
-- Một số CUDA kernel vẫn có thể tạo sai khác số học nhỏ.
-
-## 14. Nghiên cứu so sánh các phương pháp xử lý ảnh (`image_processing_study/`)
-
-Đồ án môn **Xử lý ảnh**: ablation study bám khung chương trình môn học, so sánh nhiều kỹ thuật xử
-lý ảnh cho bài toán đọc biển số. Khác với mục 7-8 ở trên (chỉ đổi cách tiền xử lý ảnh lúc đánh giá
-PARSeq **đã pretrain**), module này **train riêng một model nhỏ từ đầu cho mỗi phương pháp xử lý
-ảnh**, để đo đúng câu hỏi "phương pháp nào giúp model học tốt hơn" thay vì chỉ đo độ bền của một
-model có sẵn -- PARSeq pretrain quá mạnh nên khác biệt giữa các cách xử lý ảnh gần như bị san phẳng
-khi fine-tune. Model dùng ở đây là **CRNN + CTC** nhẹ (~2,19 triệu tham số, kiến trúc kinh điển của
-Shi et al.), train from scratch trên đúng 1 bộ train/val/test split cố định
-(`dataset.build_split`, `ocr_train.SPLIT_SEED = 42`) từ `color_filtered/{xe cơ quan,other,Dịch vụ}/`, đủ
-nhạy để chất lượng ảnh đầu vào thật sự ảnh hưởng tới độ chính xác.
-
-### 14.1 Cấu trúc code
+Mở:
 
 ```text
-image_processing_study/
-├── common.py                        # ANPR_CHARSET, normalize_plate_text, edit_distance
-├── dataset.py                       # build_split (split train/val/test cố định), PlateOCRDataset
-├── methods.py                       # registry 13 phương pháp xử lý ảnh + Wiener/PSF helper
-├── degrade.py                       # sinh suy giảm tổng hợp có kiểm soát (blur/noise) cho Thí nghiệm B
-├── model.py                         # CRNN (~2.19M tham số) + CTC greedy decode
-├── ocr_train.py                     # vòng lặp train/eval, OCRTrainConfig, fit(), checkpoint I/O
-├── run_experiment_a.py              # CLI: train 1 CRNN/phương pháp, xếp hạng theo test accuracy
-├── run_experiment_b.py              # CLI: đo PSNR/SSIM + OCR accuracy trên ảnh suy giảm tổng hợp
-├── visualize.py                     # sinh lưới ảnh before/after + biểu đồ cột so sánh
-├── IMAGE_PROCESSING_STUDY_Colab.ipynb  # notebook chạy trên Colab (GPU T4)
-└── README.md                        # tài liệu chi tiết riêng của module này
+http://127.0.0.1:7860
 ```
 
-### 14.2 Hai thí nghiệm
+`docker compose up --build` cũng được hỗ trợ, nhưng file Compose hiện dùng volume layout lịch sử `../../rl_pipeline`. Với layout clone được khuyến nghị trong README này, lệnh `docker run` ở trên rõ ràng hơn vì mount đúng `$PIXELRL_ROOT`.
 
-- **Thí nghiệm A** (`run_experiment_a.py`) -- train 1 CRNN riêng cho mỗi phương pháp trong
-  `methods.py` (cùng kiến trúc/seed/hyperparameter, cùng 1 split), so sánh exact-match accuracy /
-  CER trên tập test. Đây là bảng kết quả chính, trả lời "phương pháp xử lý ảnh nào tốt nhất cho
-  OCR biển số".
-- **Thí nghiệm B** (`run_experiment_b.py`) -- vì ảnh biển số thật không có "ảnh sạch" đã biết để so
-  sánh, thí nghiệm này tạo suy giảm tổng hợp có kiểm soát (`degrade.py`: Gaussian/motion/defocus
-  blur, Gaussian noise) trên đúng tập test của Thí nghiệm A, rồi đo PSNR/SSIM và OCR accuracy (qua
-  model `raw` đã train ở Thí nghiệm A) của các phương pháp phục hồi ảnh -- gồm cả agent RL deblur
-  (`rl_deblur/`) để so sánh với các phương pháp cổ điển.
+Docker image mặc định hướng tới CPU runtime. Để dùng GPU, máy host cần NVIDIA Container Toolkit và cấu hình PyTorch/CUDA image phù hợp.
 
-### 14.3 13 phương pháp xử lý ảnh (`methods.py`)
+## 11. Checklist artifact trước khi chạy demo
 
-| Method | Kỹ thuật | Chương môn học |
-| --- | --- | --- |
-| `raw` | Không xử lý (đối chứng), resize bilinear | baseline |
-| `bicubic_resize` | Resize bicubic thay vì bilinear | 7.1 Sampling & Interpolation |
-| `hist_eq` | Global histogram equalization | 1.1 Gray-level processing |
-| `otsu_binary` | Otsu threshold → nhị phân | 1.2 Binary image processing |
-| `clahe` | Adaptive histogram equalization | 2.1 Linear filtering / enhancement |
-| `median_denoise` | Median filter | 2.2 Nonlinear filtering |
-| `bilateral_denoise` | Bilateral filter | 2.2 Nonlinear filtering |
-| `morph_tophat` | White + black top-hat | 2.3 Morphological filtering |
-| `freq_highboost` | High-boost filter qua FFT | 2.5 Frequency-domain filtering |
-| `homomorphic` | Homomorphic filtering | 2.5 / 3.1 Restoration model |
-| `wavelet_denoise` | Wavelet soft-threshold (BayesShrink) | 3.5 Wavelet denoising |
-| `wiener_restore` | Wiener deconvolution (PSF giả định) | 3.1/3.4/3.6 Restoration & MMSE |
-| `rl_deblur_restore` | Agent RL (PixelRL + A2C) từ `rl_deblur/` | so sánh deep-learning restoration |
-
-`rl_deblur_restore` chỉ được thêm vào nếu tìm thấy checkpoint đã train
-(`outputs/rl_deblur/checkpoints/best_deblur_agent.pt`); nếu không có, method này tự bỏ qua (có log
-cảnh báo) thay vì làm hỏng cả sweep.
-
-### 14.4 Chạy
-
-Smoke test local (CPU, để bắt lỗi cú pháp/shape/CTC trước khi chạy thật):
-
-```bash
-python -m image_processing_study.run_experiment_a \
-  --methods raw clahe wavelet_denoise --no-include-rl \
-  --epochs 2 --batch-size 16 --limit-train 60 --limit-val 20 --limit-test 20 --device cpu
-
-python -m image_processing_study.run_experiment_b \
-  --raw-checkpoint outputs/image_processing_study/experiment_a/raw/best_model.pt \
-  --no-include-rl --limit 20 --device cpu
+```powershell
+Test-Path "$CALIBRATED_ROOT\outputs\refinement_finetune\best_official_parseq_anpr.pt"
+Test-Path "$CALIBRATED_ROOT\weights\plate_detector.pt"
+Test-Path "$PIXELRL_ROOT\reinforcement_learning\phase_2_calibrated_selector\results\phase2_selector.joblib"
+Test-Path "$PIXELRL_ROOT\parseq_rl_deblur_data\outputs\rl_deblur\checkpoints\best_deblur_agent.pt"
+Test-Path "$PIXELRL_ROOT\outputs\rl_restoration\router_seed_123\best_reward_router.pt"
+Test-Path "$PIXELRL_ROOT\outputs\rl_restoration\ppo_prior_seed_123\best_ppo_restoration_policy.pt"
 ```
 
-Chạy thật trên Colab: notebook `IMAGE_PROCESSING_STUDY_Colab.ipynb` chỉ giải nén 1 file zip rồi
-`import image_processing_study` trực tiếp (không dùng `%%writefile`), nên zip cần gộp cả code lẫn
-data:
+Hai artifact cuối là tùy chọn nếu không dùng bandit/PPO. Detector cũng có thể bỏ qua khi input luôn là crop biển số.
 
-```bash
-zip -r parseq_ip_study_data.zip \
-  image_processing_study color_filtered rl_deblur \
-  outputs/rl_deblur/checkpoints/best_deblur_agent.pt \
-  -x "*/__pycache__/*" "*.ipynb"
+## 12. Troubleshooting
+
+### `ModuleNotFoundError: strhub`
+
+```powershell
+python -m pip install --no-deps -e "$CALIBRATED_ROOT\parseq"
 ```
 
-Upload lên Google Drive rồi mở notebook trên Colab (Runtime > GPU T4). Notebook chạy cả 2 thí
-nghiệm, sinh ảnh minh họa + biểu đồ so sánh, và nén `outputs/image_processing_study/` gửi lại
-Drive. Chi tiết đầy đủ hơn (bao gồm cấu hình huấn luyện, biến kiểm soát, cách đọc log) nằm ở
-[`image_processing_study/README.md`](image_processing_study/README.md).
+Sau đó kiểm tra junction `PixelRL-PARSeq/parseq` và `PixelRL-PARSeq/parseq_rl_deblur_data/parseq`.
 
-### 14.5 Kết quả Thí nghiệm A -- xếp hạng theo test exact-match (367 mẫu test)
+### Demo không thấy PixelRL hoặc selector
 
-Cấu hình: 100 epoch tối đa, early stopping patience 10, batch size 64, lr `1e-3`, seed 42, cùng
-split cho mọi phương pháp (`outputs/image_processing_study/experiment_a/run_config.json`).
+Kiểm tra:
 
-| Hạng | Method | Chương | Test exact match | Test CER | Test char acc | Best epoch |
-| ---: | --- | --- | ---: | ---: | ---: | ---: |
-| 1 | `bicubic_resize` | 7.1 Sampling & Interpolation | 70,84% | 5,09% | 94,91% | 53 |
-| 2 | `rl_deblur_restore` | Deep-learning restoration (so sánh) | 69,48% | 5,42% | 94,58% | 52 |
-| 3 | `wavelet_denoise` | 3.5 Wavelet denoising | 69,21% | 6,07% | 93,93% | 68 |
-| 4 | `bilateral_denoise` | 2.2 Nonlinear filtering | 64,85% | 6,26% | 93,74% | 86 |
-| 5 | `raw` (baseline) | -- | 59,40% | 8,37% | 91,63% | 42 |
-| 6 | `wiener_restore` | 3.1/3.4/3.6 Restoration & MMSE | 57,49% | 9,09% | 90,91% | 38 |
-| 7 | `morph_tophat` | 2.3 Morphological filtering | 55,04% | 9,38% | 90,62% | 49 |
-| 8 | `clahe` | 2.1 Linear filtering / enhancement | 53,68% | 9,28% | 90,72% | 54 |
-| 9 | `freq_highboost` | 2.5 Frequency-domain filtering | 53,41% | 9,21% | 90,79% | 42 |
-| 10 | `median_denoise` | 2.2 Nonlinear filtering | 52,86% | 9,28% | 90,72% | 36 |
-| 11 | `homomorphic` | 2.5 / 3.1 Restoration model | 52,04% | 9,93% | 90,07% | 58 |
-| 12 | `hist_eq` | 1.1 Gray-level processing | 51,77% | 9,96% | 90,04% | 43 |
-| 13 | `otsu_binary` | 1.2 Binary image processing | 41,69% | 20,90% | 79,10% | 46 |
+```powershell
+$env:RL_PIPELINE_ROOT
+Test-Path $env:RL_PIPELINE_ROOT
+Test-Path $env:RL_DEBLUR_CHECKPOINT
+```
 
-Kết luận nhanh: `bicubic_resize`, `rl_deblur_restore` và `wavelet_denoise` là 3 phương pháp duy
-nhất vượt qua baseline `raw` một cách rõ rệt; `otsu_binary` (nhị phân hoá cứng) làm mất quá nhiều
-thông tin và tệ nhất trong 13 phương pháp.
+Phải đặt biến môi trường trong cùng terminal dùng để chạy Uvicorn.
 
-### 14.6 Kết quả Thí nghiệm B -- phục hồi ảnh suy giảm tổng hợp (367 mẫu, dùng model `raw`)
+### `phase2_selector.joblib` không tồn tại
 
-Phân bố loại suy giảm tổng hợp: `gaussian_blur` 97, `gaussian_noise` 94, `defocus_blur` 93,
-`motion_blur` 83 mẫu (`outputs/image_processing_study/experiment_b/degradation_kind_counts.csv`).
+Phase 2 chỉ chạy sau khi Phase 1 đã sinh đủ prediction CSV. Kiểm tra:
 
-| Method | Chương | PSNR (dB) | SSIM | OCR exact match | OCR CER |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `clean` (upper bound) | ground truth | ∞ | 1,000 | 59,40% | 8,42% |
-| `rl_deblur_restore` | Deep-learning restoration (so sánh) | 22,42 | 0,831 | 44,41% | 16,08% |
-| `wavelet_denoise` | 3.5 Wavelet denoising | 22,13 | 0,777 | 35,42% | 23,28% |
-| `wiener_restore_true_psf` | 3.1/3.4/3.6 Restoration & MMSE | 21,51 | 0,789 | 33,79% | 23,49% |
-| `degraded` (lower bound) | không phục hồi | 21,49 | 0,759 | 35,42% | 23,35% |
-| `bilateral_denoise` | 2.2 Nonlinear filtering | 21,44 | 0,745 | 30,52% | 26,60% |
-| `median_denoise` | 2.2 Nonlinear filtering | 21,06 | 0,746 | 32,15% | 26,21% |
-| `homomorphic` | 2.5 / 3.1 Restoration model | 13,87 | 0,608 | 20,71% | 30,46% |
+```text
+PixelRL-PARSeq/reinforcement_learning/phase_1_multiscale_tta/results/
+```
 
-Kết luận nhanh: `rl_deblur_restore` phục hồi tốt nhất cả về PSNR/SSIM lẫn OCR accuracy trong số
-các phương pháp thử nghiệm, bỏ xa các bộ lọc cổ điển; `homomorphic` làm giảm PSNR xuống dưới cả
-`degraded` (không phục hồi) -- filter này không phù hợp với kiểu suy giảm blur/noise tổng hợp ở
-đây. `wiener_restore_true_psf` dùng đúng PSF đã tạo suy giảm (khác với `wiener_restore` ở Thí
-nghiệm A vốn giả định PSF) nhưng vẫn không cải thiện được OCR accuracy so với không xử lý gì.
+Sau đó chạy lại Phase 2 với đúng `--phase1-dir`.
 
-### 14.7 Ảnh minh hoạ
+### CUDA out of memory
 
-| File | Nội dung |
-| --- | --- |
-| [`experiment_a_accuracy_bar.png`](outputs/image_processing_study/samples/experiment_a_accuracy_bar.png) | Biểu đồ cột xếp hạng exact-match accuracy 13 phương pháp (Thí nghiệm A) |
-| [`experiment_a_methods_grid.png`](outputs/image_processing_study/samples/experiment_a_methods_grid.png) | Lưới ảnh cùng 1 biển số qua từng phương pháp xử lý |
-| [`experiment_b_psnr_bar.png`](outputs/image_processing_study/samples/experiment_b_psnr_bar.png) | Biểu đồ cột PSNR các phương pháp phục hồi (Thí nghiệm B) |
-| [`experiment_b_restoration_grid.png`](outputs/image_processing_study/samples/experiment_b_restoration_grid.png) | Lưới ảnh clean/degraded/từng phương pháp phục hồi, theo 4 kiểu suy giảm |
-| [`preview_processed_samples.png`](outputs/image_processing_study/samples/preview_processed_samples.png) | Xem trước ảnh đã xử lý của 13 phương pháp trên 5 mẫu từ split train |
+- Giảm `--batch-size`.
+- Giảm số worker.
+- Dùng `--device cpu` để kiểm tra chức năng.
+- Không chạy nhiều training job trên cùng GPU.
 
-![Experiment A accuracy bar chart](outputs/image_processing_study/samples/experiment_a_accuracy_bar.png)
+### Prediction tốt trên validation nhưng giảm trên test
 
-![Experiment B PSNR bar chart](outputs/image_processing_study/samples/experiment_b_psnr_bar.png)
+Các nguyên nhân phổ biến:
 
-### 14.8 File output
+- Fit calibrator/threshold bằng test.
+- Trùng ảnh hoặc trùng biển số giữa các split.
+- Chọn checkpoint dựa trên test accuracy.
+- Domain của ảnh demo khác dữ liệu huấn luyện.
+- Raw OCR confidence bị xem như xác suất đã calibrate.
 
-| Đường dẫn | Nội dung |
-| --- | --- |
-| `outputs/image_processing_study/experiment_a/<method>/{best_model.pt,history.csv,test_predictions.csv,summary.json}` | Checkpoint, lịch sử train, prediction, tổng hợp từng phương pháp |
-| `outputs/image_processing_study/experiment_a/comparison.csv` | Bảng xếp hạng chính của Thí nghiệm A |
-| `outputs/image_processing_study/experiment_a/run_config.json` | Hyperparameter dùng chung cho cả sweep |
-| `outputs/image_processing_study/experiment_b/comparison.csv` | PSNR/SSIM + OCR theo phương pháp phục hồi |
-| `outputs/image_processing_study/experiment_b/degradation_kind_counts.csv` | Phân bố loại suy giảm tổng hợp |
-| `outputs/image_processing_study/experiment_b/run_summary.json` | Cấu hình chạy (model OCR dùng, danh sách phương pháp phục hồi) |
-| `outputs/image_processing_study/samples/` | Lưới ảnh before/after + biểu đồ cột |
+### PixelRL làm ảnh đẹp hơn nhưng OCR kém hơn
+
+PSNR/SSIM và OCR accuracy không hoàn toàn đồng biến. Hãy:
+
+- Chọn checkpoint theo validation OCR metric nếu mục tiêu là ANPR.
+- So sánh reward thuần pixel với reward OCR-aware.
+- Giới hạn số bước để tránh over-processing.
+- Giữ original image như một candidate để selector có thể từ chối ảnh đã phục hồi.
+
+## 13. Entry points chính
+
+```text
+calibrated-candidate-selector-for-PARSeq/
+├── train_no_refinement/parseq_official_anpr_pipeline.py
+├── preprocessing_best_config/benchmark_multiscale_tta.py
+├── preprocessing_best_config/benchmark_multiscale_selector_phase2.py
+├── demo/app.py
+├── demo/rl_runtime.py
+└── weights/plate_detector.pt
+
+PixelRL-PARSeq/
+├── parseq_rl_deblur_data/rl_deblur/make_dataset.py
+├── parseq_rl_deblur_data/rl_deblur/train.py
+├── parseq_rl_deblur_data/rl_deblur/evaluate.py
+├── reinforcement_learning/run_phase.py
+└── rl_restoration/
+```
+
+## 14. Tái lập thí nghiệm
+
+Khi báo cáo kết quả, cần lưu:
+
+- Git commit của cả hai repo.
+- Checksum checkpoint PARSeq và policy RL.
+- Seed chia dữ liệu và seed training.
+- Danh sách 65 view/candidate.
+- Cấu hình normalization và label canonicalization.
+- Hyperparameter selector, PixelRL, bandit/PPO.
+- Kết quả validation dùng để chọn model.
+- Kết quả test cuối cùng chỉ sau khi khóa cấu hình.
+
+Hai repo phải được version cùng nhau. Thay PARSeq checkpoint, preprocessing candidates hoặc feature schema mà không train lại selector/PixelRL có thể làm calibration và policy không còn hợp lệ.

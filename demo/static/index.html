@@ -196,8 +196,30 @@
             </div>
             <span class="rank-chip" id="detail-rank">#--</span>
           </header>
-          <div class="detail-content" id="detail-content">
-            <div class="skeleton-detail"><span></span><span></span><span></span></div>
+          <div class="detail-content">
+            <div id="detail-content">
+              <div class="skeleton-detail"><span></span><span></span><span></span></div>
+            </div>
+            <section class="candidate-inspector is-hidden" id="candidate-inspector" aria-live="polite">
+              <header class="candidate-inspector-header">
+                <div>
+                  <span class="detail-label">Last multi-view run</span>
+                  <strong id="candidate-run-title">Candidates</strong>
+                </div>
+                <span class="candidate-count" id="candidate-count">0</span>
+              </header>
+              <div id="candidate-guidance"></div>
+              <div class="selected-candidate" id="selected-candidate"></div>
+              <label class="candidate-toggle" for="show-candidates-toggle">
+                <input id="show-candidates-toggle" type="checkbox" />
+                <span class="toggle-track"><i></i></span>
+                <span>
+                  <strong>Show executed candidates</strong>
+                  <small id="candidate-toggle-label">Inspect every completed view</small>
+                </span>
+              </label>
+              <div class="candidate-list is-hidden" id="candidate-list"></div>
+            </section>
           </div>
         </aside>
       </section>

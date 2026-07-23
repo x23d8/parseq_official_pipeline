@@ -20,6 +20,11 @@ BENCHMARK_FILES = (
     ROOT / "outputs" / "testing" / "preprocessing_combinations_benchmark" / "validation_results.csv",
     ROOT / "outputs" / "testing" / "preprocessing_adaptive_benchmark" / "validation_results.csv",
 )
+TEST_BENCHMARK_FILES = (
+    ROOT / "outputs" / "testing" / "preprocessing_course_benchmark" / "test_finalists_results.csv",
+    ROOT / "outputs" / "testing" / "preprocessing_combinations_benchmark" / "test_finalists_results.csv",
+    ROOT / "outputs" / "testing" / "preprocessing_adaptive_benchmark" / "test_finalists_results.csv",
+)
 
 # Expose reusable blocks instead of all pre-baked benchmark combinations.
 # PixelRL and complete learned selectors are appended below.
@@ -43,10 +48,23 @@ UI_METHOD_NAMES = (
     "hist_equalization",
     "percentile_stretch_1_99",
     "gamma_0_9",
+    "adaptive_noise_3way",
+    "clahe_rl_deblur_bilateral",
     # This segmentation block is the verified recovery path for tight,
     # two-line plates such as wrong_images/59DB05813.png.
     "component_mask_gray",
 )
+
+REQUESTED_TABLE_METADATA = {
+    "adaptive_noise_3way": {
+        "method_type": "Single-view",
+        "benchmark_remark": "Adaptive preprocessing",
+    },
+    "clahe_rl_deblur_bilateral": {
+        "method_type": "Single-view",
+        "benchmark_remark": "Best among fixed pipelines",
+    },
+}
 
 
 def _number(value: Any, default: float = 0.0) -> float:
@@ -66,6 +84,10 @@ def _optional_number(value: Any) -> float | None:
 
 
 def _display_name(name: str) -> str:
+    if name == "adaptive_noise_3way":
+        return "Adaptive Noise Router"
+    if name == "clahe_rl_deblur_bilateral":
+        return "CLAHE + Richardson-Lucy + Bilateral"
     if name == "richardson_lucy_deblur":
         return "Richardson-Lucy Deblur"
     replacements = {
@@ -143,19 +165,30 @@ def _impact_reason(name: str, config: dict[str, Any]) -> str:
 
 def _benchmark_rows(available_configs: dict[str, Any]) -> dict[str, dict[str, Any]]:
     best_rows: dict[str, dict[str, Any]] = {}
-    for csv_path in BENCHMARK_FILES:
+    for csv_path in (*BENCHMARK_FILES, *TEST_BENCHMARK_FILES):
         if not csv_path.exists():
             continue
         frame = pd.read_csv(csv_path)
+        is_test = csv_path in TEST_BENCHMARK_FILES
         for row in frame.to_dict(orient="records"):
             name = str(row.get("name") or row.get("config") or "").strip()
             if name not in available_configs:
                 continue
-            candidate = {**row, "benchmark_source": csv_path.parent.name}
+            candidate = {
+                **row,
+                "split": "test" if is_test else str(row.get("split", "validation")),
+                "benchmark_source": f"{csv_path.parent.name}/{csv_path.name}",
+                "_test_priority": is_test,
+            }
             current = best_rows.get(name)
-            if current is None or (
+            if current is None or bool(candidate["_test_priority"]) > bool(
+                current.get("_test_priority", False)
+            ) or (
+                bool(candidate["_test_priority"]) == bool(current.get("_test_priority", False))
+                and (
                 _number(candidate.get("exact_acc")), _number(candidate.get("char_acc"))
-            ) > (_number(current.get("exact_acc")), _number(current.get("char_acc"))):
+                ) > (_number(current.get("exact_acc")), _number(current.get("char_acc")))
+            ):
                 best_rows[name] = candidate
     return best_rows
 
@@ -202,6 +235,7 @@ def load_method_catalog(
                 "composable": True,
                 "exclusive": False,
                 "comparison_eligible": True,
+                **REQUESTED_TABLE_METADATA.get(name, {}),
             }
         )
 
@@ -245,9 +279,9 @@ def load_method_catalog(
         {
             "rank": len(catalog) + 1,
             "name": RECOVERY_METHOD_NAME,
-            "display_name": "Verfied RL",
+            "display_name": "Verified RL",
             "topic": "Seven-candidate selector",
-            "description": "Extra reinforement learning with human in the loop produces a verified recovery",
+            "description": "Human-verified recovery routes are evaluated as a compact seven-candidate ensemble.",
             "impact_reason": "Known geometry, segmentation, illumination, morphology, wavelet, and thresholding recoveries are evaluated without reading the filename or target label.",
             "pipeline_steps": [
                 "Generate baseline plus six verified recovery candidates",
@@ -271,6 +305,8 @@ def load_method_catalog(
             "experimental_label": "RECOVERY",
             "catalog_badge": "RECOVERY",
             "featured": True,
+            "candidate_view_count": 7,
+            "candidate_view_label": "baseline + 6 verified recovery routes",
             "composable": True,
             "exclusive": True,
             "comparison_eligible": False,
@@ -281,14 +317,40 @@ def load_method_catalog(
         "calibrated_candidate_selector": {
             "display_name": "Calibrated Candidate Selector",
             "topic": "Learned routing / calibrated 65-view selector",
-            "description": "A locked pairwise ranker groups 65 multi-scale OCR views into candidate strings and selects a calibrated result.",
-            "impact_reason": "Vote strength, calibrated confidence, view reliability, plate shape and image geometry are combined before switching away from consensus.",
+            "description": "A locked pairwise ranker groups 65 multi-scale OCR views plus six verified image-error routes and selects a calibrated result.",
+            "impact_reason": "Vote strength, calibrated confidence, view reliability, plate shape and image geometry are combined with a small label-free priority for verified error-recovery routes.",
             "pipeline_steps": [
-                "Generate 65 resolution-aware OCR views",
+                "Generate baseline plus 64 resolution-aware OCR views",
+                "Always run all six verified image-error recovery routes",
                 "Aggregate duplicate candidate strings",
                 "Apply the locked calibrated pairwise selector",
+                "Give recovery routes a small bonus; strongly prioritize a content-matched route",
             ],
+            "candidate_view_count": 71,
+            "candidate_view_label": "65 standard views + 6 image-error recovery routes",
             "kind": "learned_selector",
+            "filter_group": "imp",
+            "method_type": "Multi-view",
+            "benchmark_remark": "Best overall performance",
+            "experimental": False,
+        },
+        "tta_65_view_consensus": {
+            "display_name": "65-view TTA Consensus",
+            "topic": "Multi-view / locked test-time augmentation consensus",
+            "description": "A locked consensus rule selects from baseline plus 64 resolution-aware OCR views and six always-on verified image-error routes.",
+            "impact_reason": "Agreement across zoom, upscale, full-plate and two-line-unwrapped views reduces dependence on one route, while verified recovery candidates receive a small selection bonus.",
+            "pipeline_steps": [
+                "Generate baseline plus 64 resolution-aware OCR views",
+                "Always run all six verified image-error recovery routes",
+                "Aggregate duplicate OCR strings and supporting views",
+                "Apply consensus with a small recovery-route priority",
+            ],
+            "candidate_view_count": 71,
+            "candidate_view_label": "65 standard views + 6 image-error recovery routes",
+            "kind": "multi_view_selector",
+            "filter_group": "imp",
+            "method_type": "Multi-view",
+            "benchmark_remark": "Oracle near-optimal",
             "experimental": False,
         },
         "contextual_bandit": {
@@ -327,6 +389,8 @@ def load_method_catalog(
                 "Extract per-candidate visual and OCR consensus features",
                 "Select with candidate-set PPO and teacher safety guard",
             ],
+            "candidate_view_count": 20,
+            "candidate_view_label": "20 complete compositional views",
             "kind": "rl_selector",
             "experimental": True,
         },
@@ -349,7 +413,7 @@ def load_method_catalog(
                 "benchmark_available": samples > 0 and runtime.get("exact_acc") is not None,
                 "benchmark_split": "locked test" if samples else None,
                 "benchmark_source": str(runtime.get("benchmark_source", "external_rl_pipeline")),
-                "filter_group": "rl",
+                "filter_group": str(definition.get("filter_group", "rl")),
                 "available": available,
                 "unavailable_reason": runtime.get("unavailable_reason"),
                 "composable": available,

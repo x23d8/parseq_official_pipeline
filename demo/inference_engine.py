@@ -192,6 +192,11 @@ class InferenceEngine:
                 ("test", "phase2"),
                 "reinforcement_learning/phase_2_calibrated_selector/results/summary.json",
             ),
+            "tta_65_view_consensus": (
+                self.rl_pipeline_root / "outputs/testing/preprocessing_multiscale_tta_benchmark/summary.json",
+                ("test", "consensus"),
+                "outputs/testing/preprocessing_multiscale_tta_benchmark/summary.json",
+            ),
             "contextual_bandit": (
                 self.rl_pipeline_root / "reinforcement_learning/common_rl_benchmark/summary.json",
                 ("results", "test", "contextual_bandit_phase4"),
@@ -222,6 +227,8 @@ class InferenceEngine:
                     char_acc=float(payload["char_acc"]),
                 )
                 if name == "calibrated_candidate_selector":
+                    baseline = summary_payload["test"]["baseline"]
+                elif name == "tta_65_view_consensus":
                     baseline = summary_payload["test"]["baseline"]
                 elif name in {"contextual_bandit", "two_stage_ppo"}:
                     baseline = summary_payload["results"]["test"]["raw_parseq"]
@@ -617,10 +624,32 @@ class InferenceEngine:
                     "index": index,
                     "view": item["view"].name,
                     "pipeline": list(item["view"].pipeline),
+                    "direction": (
+                        "rotate"
+                        if item["view"].rotate_degrees
+                        else "crop"
+                        if any(
+                            (
+                                item["view"].crop_left,
+                                item["view"].crop_right,
+                                item["view"].crop_top,
+                                item["view"].crop_bottom,
+                            )
+                        )
+                        else "full_plate"
+                    ),
+                    "rotate_degrees": item["view"].rotate_degrees,
+                    "crop": {
+                        "left": item["view"].crop_left,
+                        "right": item["view"].crop_right,
+                        "top": item["view"].crop_top,
+                        "bottom": item["view"].crop_bottom,
+                    },
                     "prediction": prediction,
                     "confidence": float(confidence),
                     "normalized_confidence": normalized_confidence(confidence, prediction),
                     "plausible_plate": is_plausible_vietnamese_plate(prediction),
+                    "status": "executed",
                 }
             )
         selection_started = time.perf_counter()
@@ -628,6 +657,8 @@ class InferenceEngine:
         selection_ms = (time.perf_counter() - selection_started) * 1000.0
         selected_item = prepared[int(selected["index"])]
         selected_view = selected_item["view"]
+        for candidate in candidates:
+            candidate["selected"] = int(candidate["index"]) == int(selected["index"])
         step_timings = [
             {
                 "position": 1,
@@ -666,6 +697,8 @@ class InferenceEngine:
                 "selected_view": selected_view.name,
                 "selected_pipeline": list(selected_view.pipeline),
                 "normalized_confidence": selected["normalized_confidence"],
+                "selection_reason": "format_guarded_normalized_confidence",
+                "selected_candidate": selected,
                 "candidates": candidates,
             },
         }
