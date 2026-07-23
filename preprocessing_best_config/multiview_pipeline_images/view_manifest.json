@@ -1,0 +1,652 @@
+[
+  {
+    "index": 0,
+    "name": "baseline",
+    "branch": "baseline",
+    "zoom": "1.00",
+    "upscale": "1",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "01_baseline.png"
+  },
+  {
+    "index": 1,
+    "name": "full_z0.85_up2_train_baseline",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up2_train_baseline.png"
+  },
+  {
+    "index": 2,
+    "name": "full_z0.85_up2_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 3,
+    "name": "full_z0.85_up2_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 4,
+    "name": "full_z0.85_up2_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 5,
+    "name": "full_z0.93_up2_train_baseline",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up2_train_baseline.png"
+  },
+  {
+    "index": 6,
+    "name": "full_z0.93_up2_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 7,
+    "name": "full_z0.93_up2_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 8,
+    "name": "full_z0.93_up2_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 9,
+    "name": "full_z1.00_up2_train_baseline",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up2_train_baseline.png"
+  },
+  {
+    "index": 10,
+    "name": "full_z1.00_up2_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 11,
+    "name": "full_z1.00_up2_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 12,
+    "name": "full_z1.00_up2_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 13,
+    "name": "full_z1.07_up2_train_baseline",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up2_train_baseline.png"
+  },
+  {
+    "index": 14,
+    "name": "full_z1.07_up2_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 15,
+    "name": "full_z1.07_up2_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 16,
+    "name": "full_z1.07_up2_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 17,
+    "name": "full_z1.15_up2_train_baseline",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up2_train_baseline.png"
+  },
+  {
+    "index": 18,
+    "name": "full_z1.15_up2_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 19,
+    "name": "full_z1.15_up2_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 20,
+    "name": "full_z1.15_up2_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 21,
+    "name": "unwrap_z0.93_up2_train_baseline",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up2_train_baseline.png"
+  },
+  {
+    "index": 22,
+    "name": "unwrap_z0.93_up2_clahe_clip1_tile4",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 23,
+    "name": "unwrap_z0.93_up2_clahe_rl_deblur_bilateral",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 24,
+    "name": "unwrap_z0.93_up2_adaptive_noise_3way",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 25,
+    "name": "unwrap_z1.00_up2_train_baseline",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up2_train_baseline.png"
+  },
+  {
+    "index": 26,
+    "name": "unwrap_z1.00_up2_clahe_clip1_tile4",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 27,
+    "name": "unwrap_z1.00_up2_clahe_rl_deblur_bilateral",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 28,
+    "name": "unwrap_z1.00_up2_adaptive_noise_3way",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 29,
+    "name": "unwrap_z1.07_up2_train_baseline",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up2_train_baseline.png"
+  },
+  {
+    "index": 30,
+    "name": "unwrap_z1.07_up2_clahe_clip1_tile4",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up2_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 31,
+    "name": "unwrap_z1.07_up2_clahe_rl_deblur_bilateral",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up2_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 32,
+    "name": "unwrap_z1.07_up2_adaptive_noise_3way",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "2",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up2_adaptive_noise_3way.png"
+  },
+  {
+    "index": 33,
+    "name": "full_z0.85_up3_train_baseline",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up3_train_baseline.png"
+  },
+  {
+    "index": 34,
+    "name": "full_z0.85_up3_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 35,
+    "name": "full_z0.85_up3_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 36,
+    "name": "full_z0.85_up3_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "0.85",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.85_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 37,
+    "name": "full_z0.93_up3_train_baseline",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up3_train_baseline.png"
+  },
+  {
+    "index": 38,
+    "name": "full_z0.93_up3_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 39,
+    "name": "full_z0.93_up3_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 40,
+    "name": "full_z0.93_up3_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z0.93_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 41,
+    "name": "full_z1.00_up3_train_baseline",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up3_train_baseline.png"
+  },
+  {
+    "index": 42,
+    "name": "full_z1.00_up3_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 43,
+    "name": "full_z1.00_up3_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 44,
+    "name": "full_z1.00_up3_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.00_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 45,
+    "name": "full_z1.07_up3_train_baseline",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up3_train_baseline.png"
+  },
+  {
+    "index": 46,
+    "name": "full_z1.07_up3_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 47,
+    "name": "full_z1.07_up3_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 48,
+    "name": "full_z1.07_up3_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.07_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 49,
+    "name": "full_z1.15_up3_train_baseline",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up3_train_baseline.png"
+  },
+  {
+    "index": 50,
+    "name": "full_z1.15_up3_clahe_clip1_tile4",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 51,
+    "name": "full_z1.15_up3_clahe_rl_deblur_bilateral",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 52,
+    "name": "full_z1.15_up3_adaptive_noise_3way",
+    "branch": "full",
+    "zoom": "1.15",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": false,
+    "output": "views/full/full_z1.15_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 53,
+    "name": "unwrap_z0.93_up3_train_baseline",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up3_train_baseline.png"
+  },
+  {
+    "index": 54,
+    "name": "unwrap_z0.93_up3_clahe_clip1_tile4",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 55,
+    "name": "unwrap_z0.93_up3_clahe_rl_deblur_bilateral",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 56,
+    "name": "unwrap_z0.93_up3_adaptive_noise_3way",
+    "branch": "unwrap",
+    "zoom": "0.93",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z0.93_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 57,
+    "name": "unwrap_z1.00_up3_train_baseline",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up3_train_baseline.png"
+  },
+  {
+    "index": 58,
+    "name": "unwrap_z1.00_up3_clahe_clip1_tile4",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 59,
+    "name": "unwrap_z1.00_up3_clahe_rl_deblur_bilateral",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 60,
+    "name": "unwrap_z1.00_up3_adaptive_noise_3way",
+    "branch": "unwrap",
+    "zoom": "1.00",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.00_up3_adaptive_noise_3way.png"
+  },
+  {
+    "index": 61,
+    "name": "unwrap_z1.07_up3_train_baseline",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "train_baseline",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up3_train_baseline.png"
+  },
+  {
+    "index": 62,
+    "name": "unwrap_z1.07_up3_clahe_clip1_tile4",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "clahe_clip1_tile4",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up3_clahe_clip1_tile4.png"
+  },
+  {
+    "index": 63,
+    "name": "unwrap_z1.07_up3_clahe_rl_deblur_bilateral",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "clahe_rl_deblur_bilateral",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up3_clahe_rl_deblur_bilateral.png"
+  },
+  {
+    "index": 64,
+    "name": "unwrap_z1.07_up3_adaptive_noise_3way",
+    "branch": "unwrap",
+    "zoom": "1.07",
+    "upscale": "3",
+    "preprocessing": "adaptive_noise_3way",
+    "unwrap_two_line": true,
+    "output": "views/unwrap/unwrap_z1.07_up3_adaptive_noise_3way.png"
+  }
+]

@@ -18,11 +18,17 @@
         <span class="eyebrow">ANPR SYSTEM</span>
         <strong>PREPROCESSING LAB</strong>
       </div>
-      <div class="system-state" id="system-state">
-        <span class="pulse-dot"></span>
-        <span id="system-label">Connecting</span>
-        <span class="state-divider"></span>
-        <span id="device-label">--</span>
+      <div class="topbar-tools">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
+          <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.4 8.4 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"/></svg>
+        </button>
+        <div class="system-state" id="system-state">
+          <span class="pulse-dot"></span>
+          <span id="system-label">Connecting</span>
+          <span class="state-divider"></span>
+          <span id="device-label">--</span>
+        </div>
       </div>
     </header>
 
@@ -36,9 +42,35 @@
           </div>
         </div>
         <p>
-          Run the fine-tuned PARSeq model on one measured preprocessing pipeline,
-          or compare every accuracy-improving configuration in a single batch.
+          Build an image-restoration pipeline or run a learned selector:
+          calibrated candidates, contextual bandit, two-stage PPO, PixelRL, and auto PPO.
         </p>
+      </section>
+
+      <section class="pipeline-composer" aria-labelledby="pipeline-title">
+        <header class="composer-header">
+          <div>
+            <span class="section-index">02</span>
+            <div>
+              <p class="kicker">Left-to-right execution</p>
+              <h2 id="pipeline-title">Processing pipeline</h2>
+            </div>
+          </div>
+          <div class="composer-actions">
+            <span id="pipeline-count">0 / 5 steps</span>
+            <button id="clear-pipeline" type="button">Clear</button>
+          </div>
+        </header>
+        <div class="pipeline-canvas" id="pipeline-canvas" role="list" aria-label="Ordered processing pipeline">
+          <div class="pipeline-empty" id="pipeline-empty">
+            <strong>Drag methods here</strong>
+            <span>or use the + button. Execution follows the order from left to right.</span>
+          </div>
+        </div>
+        <footer class="composer-note">
+          <span>ORDER MATTERS</span>
+          <p>Custom compositions are exploratory and do not inherit benchmark accuracy from their individual steps.</p>
+        </footer>
       </section>
 
       <section class="workspace-grid">
@@ -47,24 +79,30 @@
             <div>
               <span class="panel-number">A</span>
               <div>
-                <p class="kicker">Ranked by exact match</p>
-                <h2>Select method</h2>
+                <p class="kicker">Drag or add a step</p>
+                <h2>Method catalog</h2>
               </div>
             </div>
             <span class="count-badge" id="method-count">0</span>
           </header>
-          <label class="search-box">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z"/></svg>
-            <input id="method-search" type="search" placeholder="Filter methods" autocomplete="off" />
-          </label>
+          <div class="catalog-controls">
+            <label class="search-box">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z"/></svg>
+              <input id="method-search" type="search" placeholder="Filter methods" autocomplete="off" />
+            </label>
+            <div class="method-filters" aria-label="Method type filters">
+              <label><input type="checkbox" value="imp" checked /><span>IMP</span></label>
+              <label><input type="checkbox" value="rl" checked /><span>RL methods</span></label>
+            </div>
+          </div>
           <div class="method-list" id="method-list" role="listbox" aria-label="Preprocessing methods">
             <div class="skeleton-list" aria-hidden="true">
               <span></span><span></span><span></span><span></span>
             </div>
           </div>
           <footer class="panel-footnote">
-            <span class="legend-dot improved"></span> Improvement on test set
-            <span class="legend-dot reference"></span> Training reference
+            <span class="legend-dot improved"></span> Measured single method
+            <span class="legend-dot reference"></span> Unmeasured / optional
           </footer>
         </article>
 
@@ -73,12 +111,24 @@
             <div>
               <span class="panel-number">B</span>
               <div>
-                <p class="kicker">Input specimen</p>
-                <h2>Upload source image</h2>
+                <p class="kicker">Upload or clipboard</p>
+                <h2>Choose source image</h2>
               </div>
             </div>
             <span class="file-state" id="file-state">No input</span>
           </header>
+
+          <div class="input-source-bar" aria-label="Image input options">
+            <button class="source-button" id="browse-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h6l2-2h8v13H4v-11Z"/><path d="M12 16v-6m0 0-2.5 2.5M12 10l2.5 2.5"/></svg>
+              <span><strong>Local upload</strong><small>Browse files</small></span>
+            </button>
+            <span class="source-divider" aria-hidden="true">OR</span>
+            <button class="source-button paste-button" id="paste-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5H6.5v15h11v-15H15"/><path d="M9 3.5h6v4H9z"/><path d="M9 12h6m-6 4h4"/></svg>
+              <span><strong>Paste image</strong><small>Ctrl / Cmd + V</small></span>
+            </button>
+          </div>
 
           <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Upload a vehicle scene or license plate image">
             <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden />
@@ -89,7 +139,7 @@
                 <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v4h14v-4"/></svg>
               </div>
               <h3>Drop a vehicle or plate image</h3>
-              <p>or click to browse local files</p>
+              <p>or paste an image from your clipboard anywhere on this page</p>
               <span>PNG / JPG / WEBP / BMP · MAX 10 MB</span>
             </div>
             <div class="image-stage is-hidden" id="image-stage">
@@ -118,7 +168,7 @@
           <div class="action-bar">
             <button class="button primary" id="detect-button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 17 12l-9 6.5v-13Z"/></svg>
-              <span>Detect</span>
+              <span>Run pipeline</span>
             </button>
             <button class="button secondary" id="compare-button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v16h4M16 4h4v16h-4M9 8h6M9 12h6M9 16h6"/></svg>
@@ -155,7 +205,7 @@
       <section class="results-section" id="results-section">
         <header class="results-header">
           <div>
-            <span class="section-index">02</span>
+            <span class="section-index">03</span>
             <div>
               <p class="kicker">Model output</p>
               <h2>Recognition results</h2>

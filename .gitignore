@@ -14,8 +14,26 @@ parseq/.git/
 parseq/**/.git/
 dataset
 
-# Phase 7 external holdout images are local evaluation data; keep manifest/audit tracked.
+# Compatibility junction only; dữ liệu RL thật nằm tại D:\NEO\rl_pipeline.
 reinforcement_learning/
+rl_restoration/
+outputs/rl_restoration/
+outputs/phase3_controlled_aug_full/
+outputs/phase3_controlled_aug_full_frozen_eval/
+outputs/phase3_controlled_aug_resolution/
+outputs/phase3_controlled_aug_restoration/
+outputs/testing/preprocessing_multiscale_tta_benchmark/
+outputs/testing/preprocessing_multiscale_selector_phase2/
+outputs/testing/phase3_controlled_augmentation_dry_run/
+outputs/testing/phase3_controlled_augmentation_smoke/
+outputs/testing/phase3_frozen_manifest_smoke/
+outputs/testing/rl_restoration_cache_smoke/
 word_reorganizer
 refinement_finetune/*phase3*
-rl_restoration
+wrong_images
+preprocessing_best_config\multiview_pipeline_images
+tools
+preprocessing_best_config\report_images
+preprocessing_best_config\multiview_pipeline_images
+outputs/refinement_finetune_20260721_144512/wrong_eval_images
+preprocessing_best_config/multiview_pipeline_images/views/full

@@ -1,0 +1,16 @@
+{
+  "source": "D:\\NEO\\LPR\\parseq_official_pipeline\\wrong_images\\59DB05813.png",
+  "visualization_input_size": [
+    96,
+    70
+  ],
+  "source_was_downsampled_for_upscale_demo": true,
+  "aspect_ratio": 1.3714285714285714,
+  "unwrap_is_active": true,
+  "baseline_views": 1,
+  "full_views": 40,
+  "unwrap_views": 24,
+  "total_views": 65,
+  "output_dir": "D:\\NEO\\LPR\\parseq_official_pipeline\\preprocessing_best_config\\multiview_pipeline_images",
+  "final_pipeline": "D:\\NEO\\LPR\\parseq_official_pipeline\\preprocessing_best_config\\multiview_pipeline_images\\multiview_65_pipeline.png"
+}

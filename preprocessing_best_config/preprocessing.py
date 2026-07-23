@@ -44,11 +44,14 @@ class PreprocessingConfig:
     bilateral_sigma_space: float = 50.0
     nlm_h: float = 3.0
     wiener_ksize: int = 3
+    frequency_filter: str = "none"  # none, highboost
+    frequency_cutoff_ratio: float = 0.15
+    frequency_boost: float = 1.5
     sharpen_alpha: float = 0.0
     sharpen_sigma: float = 1.0
     sharpen_method: str = "unsharp"  # unsharp, laplacian, dog
     sharpen_sigma_large: float = 1.6
-    morphology: str = "none"  # none, close, blackhat, gradient
+    morphology: str = "none"  # none, close, blackhat, gradient, tophat_contrast
     morphology_ksize: int = 3
     morphology_kernel_width: int | None = None
     morphology_kernel_height: int | None = None
@@ -99,6 +102,12 @@ SWEEP_CONFIGS = [
         name="grayscale",
         course_topic="1.1 Basic gray-level processing",
         description="Grayscale only.",
+    ),
+    PreprocessingConfig(
+        name="bicubic_resize",
+        course_topic="7.1 Image sampling and interpolation",
+        description="Grayscale conversion followed only by bicubic PARSeq input resizing.",
+        resize_interpolation="bicubic",
     ),
     PreprocessingConfig(
         name="autocontrast",
@@ -204,6 +213,81 @@ SWEEP_CONFIGS = [
         clahe_clip_limit=2.0,
         denoise="wavelet_haar",
         sharpen_alpha=0.5,
+    ),
+    PreprocessingConfig(
+        name="gaussian_denoise",
+        course_topic="2.1 Linear filtering",
+        description="Pure Gaussian low-pass denoising without contrast enhancement.",
+        denoise="gaussian",
+        gaussian_sigma=0.8,
+    ),
+    PreprocessingConfig(
+        name="median_denoise",
+        course_topic="2.2 Nonlinear filtering",
+        description="Pure 3x3 median denoising for impulse-noise suppression.",
+        denoise="median",
+        median_ksize=3,
+    ),
+    PreprocessingConfig(
+        name="bilateral_denoise",
+        course_topic="2.2 Nonlinear filtering",
+        description="Pure bilateral edge-preserving denoising.",
+        denoise="bilateral",
+        bilateral_d=5,
+        bilateral_sigma_color=35.0,
+        bilateral_sigma_space=5.0,
+    ),
+    PreprocessingConfig(
+        name="wavelet_haar",
+        course_topic="3.5 Wavelet denoising",
+        description="Pure single-level Haar soft-threshold wavelet denoising.",
+        denoise="wavelet_haar",
+    ),
+    PreprocessingConfig(
+        name="wiener_deconv",
+        course_topic="3.1-3.6 Restoration and MMSE filtering",
+        description="Pure Wiener deconvolution with an assumed mild Gaussian point-spread function.",
+        deblur="wiener_deconv",
+        deblur_kernel_size=5,
+        deblur_sigma=1.0,
+        deblur_balance=0.1,
+    ),
+    PreprocessingConfig(
+        name="richardson_lucy_deblur",
+        course_topic="3.1 Image restoration",
+        description="Pure Richardson-Lucy deconvolution with a mild Gaussian blur model.",
+        deblur="richardson_lucy",
+        deblur_kernel_size=3,
+        deblur_sigma=0.8,
+        deblur_iterations=3,
+    ),
+    PreprocessingConfig(
+        name="morph_tophat",
+        course_topic="2.3 Morphological filtering",
+        description="Pure white/black top-hat contrast enhancement for character strokes.",
+        morphology="tophat_contrast",
+        morphology_ksize=5,
+        morphology_strength=1.0,
+    ),
+    PreprocessingConfig(
+        name="freq_highboost",
+        course_topic="2.5 Frequency-domain filtering",
+        description="Pure FFT Gaussian high-boost filtering for high-frequency character detail.",
+        frequency_filter="highboost",
+        frequency_cutoff_ratio=0.15,
+        frequency_boost=1.5,
+    ),
+    PreprocessingConfig(
+        name="otsu_binary",
+        course_topic="1.2 Basic binary processing",
+        description="Pure global Otsu binarization without prior CLAHE.",
+        threshold="otsu",
+    ),
+    PreprocessingConfig(
+        name="adaptive_binary",
+        course_topic="1.2 Basic binary processing",
+        description="Pure local adaptive Gaussian binarization without prior CLAHE.",
+        threshold="adaptive",
     ),
     PreprocessingConfig(
         name="otsu_threshold",
@@ -944,6 +1028,24 @@ def _haar_soft_threshold(channel: np.ndarray) -> np.ndarray:
     return np.clip(out[:orig_h, :orig_w], 0, 255).astype(np.uint8)
 
 
+def _frequency_highboost(
+    channel: np.ndarray,
+    cutoff_ratio: float = 0.15,
+    boost: float = 1.5,
+) -> np.ndarray:
+    """Gaussian high-boost filtering in the Fourier domain."""
+    rows, cols = channel.shape
+    center_row, center_col = rows / 2.0, cols / 2.0
+    yy, xx = np.ogrid[:rows, :cols]
+    distance_squared = (yy - center_row) ** 2 + (xx - center_col) ** 2
+    cutoff = max(float(cutoff_ratio) * min(rows, cols), 1e-6)
+    low_pass = np.exp(-distance_squared / (2.0 * cutoff**2))
+    spectrum = np.fft.fftshift(np.fft.fft2(channel.astype(np.float64)))
+    high_boost = 1.0 + float(boost) * (1.0 - low_pass)
+    restored = np.fft.ifft2(np.fft.ifftshift(spectrum * high_boost))
+    return np.clip(np.abs(restored), 0, 255).astype(np.uint8)
+
+
 def _robust_rescale(channel: np.ndarray, low_percentile: float = 1.0, high_percentile: float = 99.0) -> np.ndarray:
     src = channel.astype(np.float32)
     low, high = np.percentile(src, [float(low_percentile), float(high_percentile)])
@@ -1343,6 +1445,18 @@ def _opencv_preprocess(image: Image.Image, cfg: PreprocessingConfig) -> Image.Im
     elif cfg.denoise != "none":
         raise ValueError(f"Unsupported denoise method: {cfg.denoise}")
 
+    if cfg.frequency_filter == "highboost":
+        work = _apply_per_channel(
+            work,
+            lambda channel: _frequency_highboost(
+                channel,
+                cfg.frequency_cutoff_ratio,
+                cfg.frequency_boost,
+            ),
+        )
+    elif cfg.frequency_filter != "none":
+        raise ValueError(f"Unsupported frequency filter: {cfg.frequency_filter}")
+
     if cfg.sharpen_alpha > 0:
         alpha = float(cfg.sharpen_alpha)
         if cfg.sharpen_method == "unsharp":
@@ -1385,7 +1499,8 @@ def _opencv_preprocess(image: Image.Image, cfg: PreprocessingConfig) -> Image.Im
     if cfg.morphology != "none":
         kernel_width = cfg.morphology_kernel_width or _odd_at_least(cfg.morphology_ksize)
         kernel_height = cfg.morphology_kernel_height or _odd_at_least(cfg.morphology_ksize)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(kernel_width), int(kernel_height)))
+        kernel_shape = cv2.MORPH_ELLIPSE if cfg.morphology == "tophat_contrast" else cv2.MORPH_RECT
+        kernel = cv2.getStructuringElement(kernel_shape, (int(kernel_width), int(kernel_height)))
         if cfg.morphology == "close":
             work = cv2.morphologyEx(work, cv2.MORPH_CLOSE, kernel)
         elif cfg.morphology == "blackhat":
@@ -1394,6 +1509,16 @@ def _opencv_preprocess(image: Image.Image, cfg: PreprocessingConfig) -> Image.Im
         elif cfg.morphology == "gradient":
             gradient = cv2.morphologyEx(work, cv2.MORPH_GRADIENT, kernel)
             work = cv2.addWeighted(work, 1.0, gradient, float(cfg.morphology_strength), 0)
+        elif cfg.morphology == "tophat_contrast":
+            top_hat = cv2.morphologyEx(work, cv2.MORPH_TOPHAT, kernel)
+            black_hat = cv2.morphologyEx(work, cv2.MORPH_BLACKHAT, kernel)
+            strength = float(cfg.morphology_strength)
+            enhanced = (
+                work.astype(np.float32)
+                + strength * top_hat.astype(np.float32)
+                - strength * black_hat.astype(np.float32)
+            )
+            work = np.clip(enhanced, 0, 255).astype(np.uint8)
         else:
             raise ValueError(f"Unsupported morphology method: {cfg.morphology}")
 

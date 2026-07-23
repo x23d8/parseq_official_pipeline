@@ -1,0 +1,50 @@
+{
+  "data_root": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset",
+  "dataset_sources": [
+    {
+      "name": "color_filtered",
+      "path": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset\\color_filtered",
+      "format": "color_filtered_labels_txt"
+    },
+    {
+      "name": "quandoi",
+      "path": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset\\update_label\\labled_quandoi",
+      "format": "collected_review_csv",
+      "plate_type": "quandoi"
+    },
+    {
+      "name": "ngoaigiao",
+      "path": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset\\update_label\\label_ngoaigiao",
+      "format": "collected_review_csv",
+      "plate_type": "ngoaigiao"
+    }
+  ],
+  "output_dir": "d:\\NEO\\LPR\\parseq_official_pipeline\\outputs\\refinement_finetune_20260721_144512",
+  "experiment": "parseq",
+  "pretrained": true,
+  "decode_ar": true,
+  "refine_iters": 1,
+  "charset_test": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  "img_size": [
+    32,
+    128
+  ],
+  "max_label_length": 12,
+  "preprocess": true,
+  "augment": true,
+  "batch_size": 16,
+  "num_workers": 0,
+  "epochs": 30,
+  "lr": 1e-05,
+  "weight_decay": 0.0001,
+  "grad_clip": 20.0,
+  "seed": 42,
+  "amp": true,
+  "split_val_ratio": 0.1,
+  "split_test_ratio": 0.1,
+  "exclude_rejected_labels": true,
+  "balance_plate_types": true,
+  "excluded_plate_types": [
+    "normal"
+  ]
+}

@@ -1,0 +1,5 @@
+split,samples,exact_acc,cer,char_acc,refine_iters,decode_ar
+val_after_finetune_refine_0,400,0.925,0.013628104179285281,0.9863718958207147,0,True
+val_after_finetune_refine_1,400,0.925,0.013930950938824955,0.9860690490611751,1,True
+val_after_finetune_refine_2,400,0.925,0.013628104179285281,0.9863718958207147,2,True
+val_after_finetune_refine_3,400,0.925,0.013930950938824955,0.9860690490611751,3,True

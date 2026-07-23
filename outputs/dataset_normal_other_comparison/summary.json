@@ -1,0 +1,11 @@
+{
+  "normal_rows": 3677,
+  "other_rows": 3550,
+  "normal_unique_bases": 3677,
+  "other_unique_bases": 3550,
+  "common_bases": 3550,
+  "normal_only": 127,
+  "other_only": 0,
+  "label_conflicts": 15,
+  "other_bases_with_multiple_files": 0
+}

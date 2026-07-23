@@ -1,0 +1,13 @@
+services:
+  parseq-demo:
+    build: .
+    image: parseq-anpr-demo:local
+    ports:
+      - "${DEMO_PORT:-7860}:7860"
+    environment:
+      PARSEQ_DEVICE: cpu
+      RL_PIPELINE_ROOT: /opt/rl_pipeline
+      PORT: 7860
+    volumes:
+      - ../../rl_pipeline:/opt/rl_pipeline:ro
+    restart: unless-stopped

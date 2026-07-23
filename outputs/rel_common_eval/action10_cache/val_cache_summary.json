@@ -1,0 +1,30 @@
+{
+  "split": "val",
+  "samples": 397,
+  "actions": [
+    "stop_baseline",
+    "raw_rgb",
+    "clahe_gentle",
+    "homomorphic",
+    "rl_bilateral",
+    "clahe_rl_bilateral",
+    "adaptive_noise",
+    "up2_baseline",
+    "up2_clahe",
+    "unwrap_up2_adaptive"
+  ],
+  "feature_dimension": 783,
+  "baseline_exact": 0.9269521410579346,
+  "oracle_exact": 0.9496221662468514,
+  "oracle_char_acc": 0.9929555895865237,
+  "oracle_action_distribution": {
+    "stop_baseline": 383,
+    "raw_rgb": 5,
+    "up2_baseline": 3,
+    "homomorphic": 3,
+    "unwrap_up2_adaptive": 2,
+    "clahe_gentle": 1
+  },
+  "checkpoint": "D:\\NEO\\LPR\\parseq_official_pipeline\\outputs\\refinement_finetune\\best_official_parseq_anpr.pt",
+  "manifest": "D:\\NEO\\LPR\\parseq_official_pipeline\\outputs\\refinement_finetune\\eval_val_predictions_best_refine.csv"
+}

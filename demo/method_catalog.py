@@ -1,4 +1,4 @@
-"""Build the UI method catalog from measured preprocessing benchmarks."""
+"""Build a compact UI catalog from measured preprocessing benchmarks."""
 
 from __future__ import annotations
 
@@ -8,30 +8,74 @@ from typing import Any
 
 import pandas as pd
 
+try:
+    from .recovery_runtime import RECOVERY_METHOD_NAME
+except ImportError:
+    from recovery_runtime import RECOVERY_METHOD_NAME
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_FILES = (
-    ROOT / "outputs" / "testing" / "preprocessing_course_benchmark" / "test_finalists_results.csv",
-    ROOT / "outputs" / "testing" / "preprocessing_combinations_benchmark" / "test_finalists_results.csv",
-    ROOT / "outputs" / "testing" / "preprocessing_adaptive_benchmark" / "test_finalists_results.csv",
+    ROOT / "outputs" / "testing" / "preprocessing_course_benchmark" / "validation_results.csv",
+    ROOT / "outputs" / "testing" / "preprocessing_combinations_benchmark" / "validation_results.csv",
+    ROOT / "outputs" / "testing" / "preprocessing_adaptive_benchmark" / "validation_results.csv",
+)
+
+# Expose reusable blocks instead of all pre-baked benchmark combinations.
+# PixelRL and complete learned selectors are appended below.
+UI_METHOD_NAMES = (
+    "clahe_gray",
+    "wavelet_haar",
+    "bilateral_denoise",
+    "median_denoise",
+    "gaussian_denoise",
+    "nlm_denoise",
+    "homomorphic_filter",
+    "retinex_multiscale",
+    "wiener_deconv",
+    "richardson_lucy_deblur",
+    "freq_highboost",
+    "unsharp_mild",
+    "morph_tophat",
+    "otsu_binary",
+    "adaptive_binary",
+    "autocontrast",
+    "hist_equalization",
+    "percentile_stretch_1_99",
+    "gamma_0_9",
+    # This segmentation block is the verified recovery path for tight,
+    # two-line plates such as wrong_images/59DB05813.png.
+    "component_mask_gray",
 )
 
 
 def _number(value: Any, default: float = 0.0) -> float:
     try:
-        value = float(value)
-        return value if pd.notna(value) else default
+        parsed = float(value)
+        return parsed if pd.notna(parsed) else default
     except (TypeError, ValueError):
         return default
 
 
+def _optional_number(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+        return parsed if pd.notna(parsed) else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _display_name(name: str) -> str:
+    if name == "richardson_lucy_deblur":
+        return "Richardson-Lucy Deblur"
     replacements = {
         "clahe": "CLAHE",
-        "rl": "RL",
+        "rl": "Richardson-Lucy",
         "rgb": "RGB",
         "cv": "CV",
         "nlm": "NLM",
+        "fft": "FFT",
+        "haar": "Haar",
         "3way": "3-Way",
         "2way": "2-Way",
     }
@@ -40,79 +84,64 @@ def _display_name(name: str) -> str:
 
 def _pipeline_steps(config: dict[str, Any]) -> list[str]:
     steps: list[str] = []
-    policy = str(config.get("adaptive_policy", "none"))
-    if policy != "none":
-        steps.append(f"Adaptive routing: {policy.replace('_', ' ')}")
     if bool(config.get("grayscale", False)):
-        channel = str(config.get("gray_channel", "luma"))
-        steps.append(f"Grayscale ({channel})")
+        steps.append(f"Grayscale ({config.get('gray_channel', 'luma')})")
     if bool(config.get("autocontrast", False)):
         steps.append("Global autocontrast")
+    if bool(config.get("histogram_equalization", False)):
+        steps.append("Global histogram equalization")
     if _number(config.get("percentile_high")) > 0:
         steps.append(
             f"Percentile stretch {config.get('percentile_low', 0):g}-{config.get('percentile_high', 100):g}"
         )
     if _number(config.get("clahe_clip_limit")) > 0:
         steps.append(f"CLAHE clip {config.get('clahe_clip_limit'):g}")
-    illumination = str(config.get("illumination", "none"))
-    if illumination != "none":
-        steps.append(illumination.replace("_", " ").title())
-    deblur = str(config.get("deblur", "none"))
-    if deblur != "none":
-        steps.append(deblur.replace("_", " ").title())
-    denoise = str(config.get("denoise", "none"))
-    if denoise != "none":
-        steps.append(denoise.replace("_", " ").title())
+    if _number(config.get("gamma"), 1.0) != 1.0:
+        steps.append(f"Gamma {config.get('gamma'):g}")
+    for field, suffix in (
+        ("illumination", ""),
+        ("deblur", " restoration"),
+        ("denoise", ""),
+        ("frequency_filter", " frequency filter"),
+    ):
+        value = str(config.get(field, "none"))
+        if value != "none":
+            steps.append(f"{value.replace('_', ' ').title()}{suffix}")
     if _number(config.get("sharpen_alpha")) > 0:
-        steps.append(f"Mild {config.get('sharpen_method', 'unsharp')} sharpening")
-    edge = str(config.get("edge_enhancement", "none"))
-    if edge != "none":
-        steps.append(f"{edge.replace('_', ' ').title()} edge fusion")
+        steps.append(f"{config.get('sharpen_method', 'unsharp').title()} sharpening")
+    morphology = str(config.get("morphology", "none"))
+    if morphology != "none":
+        steps.append(f"{morphology.replace('_', ' ').title()} morphology")
     threshold = str(config.get("threshold", "none"))
     if threshold != "none":
         steps.append(f"{threshold.title()} threshold")
+    character_isolation = str(config.get("character_isolation", "none"))
+    if character_isolation != "none":
+        steps.append(f"{character_isolation.replace('_', ' ').title()} character isolation")
     return steps or ["RGB normalization only"]
 
 
 def _impact_reason(name: str, config: dict[str, Any]) -> str:
-    if str(config.get("adaptive_policy", "none")) != "none":
-        return (
-            "Routes each crop to a conservative pipeline using measured image quality, "
-            "so clean plates are preserved while degraded plates receive stronger correction."
-        )
-    if "rl_deblur" in name:
-        return (
-            "Richardson-Lucy restoration recovers softened character strokes, while bilateral "
-            "filtering limits amplified noise and protects character boundaries."
-        )
+    if str(config.get("character_isolation", "none")) != "none":
+        return "Character-component isolation suppresses plate borders, glare, and background texture while retaining OCR strokes."
     if "clahe" in name:
-        return (
-            "Local contrast enhancement separates character strokes from uneven plate backgrounds "
-            "without applying a strong global exposure shift."
-        )
-    if "percentile" in name:
-        return (
-            "Robust percentile stretching ignores extreme pixels and expands the useful tonal range, "
-            "making low-contrast strokes easier for the recognizer to attend to."
-        )
-    if "homomorphic" in name:
-        return (
-            "Homomorphic filtering suppresses slow illumination changes while retaining high-frequency "
-            "character structure under glare, shadows, and uneven lighting."
-        )
-    if name == "autocontrast":
-        return "Expands the global intensity range and improves separation between foreground strokes and background."
-    if name == "channel_green":
-        return "The green channel often carries cleaner luminance detail and less color noise in camera imagery."
-    if name.startswith("gamma"):
-        return "A mild nonlinear tone adjustment exposes character detail while avoiding aggressive local enhancement."
-    if name == "train_baseline":
-        return "Reference pipeline used during fine-tuning; it combines local contrast, edge-preserving denoising, and mild sharpening."
+        return "Local contrast enhancement separates strokes from uneven plate backgrounds."
+    if "wavelet" in name:
+        return "Haar soft-thresholding suppresses noise while retaining localized character edges."
+    if str(config.get("frequency_filter", "none")) != "none":
+        return "Frequency-domain high-boost filtering emphasizes fine detail and softened stroke boundaries."
+    if str(config.get("deblur", "none")) != "none":
+        return "Model-based restoration attempts to recover character strokes softened by optical blur."
+    if str(config.get("denoise", "none")) != "none":
+        return "Noise suppression improves stroke consistency while preserving the plate layout."
+    if str(config.get("illumination", "none")) != "none":
+        return "Illumination normalization reduces glare, shadows, and slow background variation."
+    if str(config.get("threshold", "none")) != "none":
+        return "Binarization isolates likely character strokes from the plate background."
     return "Preserves character geometry while improving the signal presented to PARSeq."
 
 
-def load_method_catalog(available_configs: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return benchmarked runtime configs sorted by measured exact-match accuracy."""
+def _benchmark_rows(available_configs: dict[str, Any]) -> dict[str, dict[str, Any]]:
     best_rows: dict[str, dict[str, Any]] = {}
     for csv_path in BENCHMARK_FILES:
         if not csv_path.exists():
@@ -122,52 +151,34 @@ def load_method_catalog(available_configs: dict[str, Any]) -> list[dict[str, Any
             name = str(row.get("name") or row.get("config") or "").strip()
             if name not in available_configs:
                 continue
-            candidate = {
-                **row,
-                "benchmark_source": csv_path.parent.name,
-            }
+            candidate = {**row, "benchmark_source": csv_path.parent.name}
             current = best_rows.get(name)
             if current is None or (
                 _number(candidate.get("exact_acc")), _number(candidate.get("char_acc"))
             ) > (_number(current.get("exact_acc")), _number(current.get("char_acc"))):
                 best_rows[name] = candidate
+    return best_rows
 
-    # Keep measured improvements plus the training-time reference pipeline.
-    selected = {
-        name: row
-        for name, row in best_rows.items()
-        if _number(row.get("delta_exact")) > 0 or name == "train_baseline"
-    }
-    if "train_baseline" not in selected and "train_baseline" in available_configs:
-        selected["train_baseline"] = {
-            "name": "train_baseline",
-            "description": available_configs["train_baseline"].description,
-            "course_topic": available_configs["train_baseline"].course_topic,
-            "exact_acc": 0.0,
-            "char_acc": 0.0,
-            "delta_exact": 0.0,
-            "images_per_second": 0.0,
-            "benchmark_source": "runtime_reference",
-        }
 
-    ordered = sorted(
-        selected.items(),
-        key=lambda item: (
-            _number(item[1].get("exact_acc")),
-            _number(item[1].get("char_acc")),
-            _number(item[1].get("images_per_second")),
-        ),
-        reverse=True,
-    )
+def load_method_catalog(
+    available_configs: dict[str, Any],
+    rl_method: dict[str, Any] | None = None,
+    learned_methods: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Return only independently reusable blocks for plus/drag composition."""
+    best_rows = _benchmark_rows(available_configs)
     catalog: list[dict[str, Any]] = []
-    for rank, (name, row) in enumerate(ordered, start=1):
+    for name in UI_METHOD_NAMES:
+        if name not in available_configs:
+            continue
         cfg = available_configs[name]
         cfg_dict = asdict(cfg)
-        exact = _number(row.get("exact_acc"))
-        char_acc = _number(row.get("char_acc"))
+        row = best_rows.get(name, {})
+        exact = _optional_number(row.get("exact_acc"))
+        benchmark_available = bool(row) and exact is not None
         catalog.append(
             {
-                "rank": rank,
+                "rank": len(catalog) + 1,
                 "name": name,
                 "display_name": _display_name(name),
                 "topic": str(row.get("course_topic") or cfg.course_topic),
@@ -175,12 +186,191 @@ def load_method_catalog(available_configs: dict[str, Any]) -> list[dict[str, Any
                 "impact_reason": _impact_reason(name, cfg_dict),
                 "pipeline_steps": _pipeline_steps(cfg_dict),
                 "exact_acc": exact,
-                "char_acc": char_acc,
-                "delta_exact": _number(row.get("delta_exact")),
-                "images_per_second": _number(row.get("images_per_second")),
+                "char_acc": _optional_number(row.get("char_acc")),
+                "delta_exact": _optional_number(row.get("delta_exact")),
+                "images_per_second": _optional_number(row.get("images_per_second")),
                 "samples": int(_number(row.get("samples"))),
-                "is_baseline": name == "train_baseline",
-                "benchmark_source": str(row.get("benchmark_source", "")),
+                "is_baseline": False,
+                "benchmark_available": benchmark_available,
+                "benchmark_split": str(row.get("split", "validation")) if benchmark_available else None,
+                "benchmark_source": str(row.get("benchmark_source", "runtime_unmeasured")),
+                "kind": "preprocessing_block",
+                "filter_group": "imp",
+                "available": True,
+                "unavailable_reason": None,
+                "experimental": False,
+                "composable": True,
+                "exclusive": False,
+                "comparison_eligible": True,
             }
         )
+
+    if rl_method is not None:
+        available = bool(rl_method.get("available", False))
+        samples = int(_number(rl_method.get("samples")))
+        catalog.append(
+            {
+                "rank": len(catalog) + 1,
+                "name": "rl_deblur_restore",
+                "display_name": "PixelRL Reinforcement Agent",
+                "topic": "Reinforcement learning / PixelRL + A2C",
+                "description": "A learned per-pixel restoration agent applies five correction steps before PARSeq OCR.",
+                "impact_reason": "The policy chooses a local restoration action for every pixel instead of using one fixed blur kernel.",
+                "pipeline_steps": [
+                    "Resize to the 32x128 grayscale agent canvas",
+                    "PixelRL actor-critic: five greedy action-map steps",
+                    "Convert restored signal back to RGB for PARSeq",
+                ],
+                "exact_acc": _optional_number(rl_method.get("exact_acc")),
+                "char_acc": _optional_number(rl_method.get("char_acc")),
+                "delta_exact": _optional_number(rl_method.get("delta_exact")),
+                "images_per_second": _optional_number(rl_method.get("images_per_second")),
+                "samples": samples,
+                "is_baseline": False,
+                "benchmark_available": samples > 0,
+                "benchmark_split": "degraded evaluation" if samples else None,
+                "benchmark_source": str(rl_method.get("benchmark_source", "rl_deblur_eval")),
+                "kind": "rl_agent",
+                "filter_group": "rl",
+                "available": available,
+                "unavailable_reason": rl_method.get("unavailable_reason"),
+                "experimental": True,
+                "composable": available,
+                "exclusive": False,
+                "comparison_eligible": available,
+            }
+        )
+
+    catalog.append(
+        {
+            "rank": len(catalog) + 1,
+            "name": RECOVERY_METHOD_NAME,
+            "display_name": "Verfied RL",
+            "topic": "Seven-candidate selector",
+            "description": "Extra reinforement learning with human in the loop produces a verified recovery",
+            "impact_reason": "Known geometry, segmentation, illumination, morphology, wavelet, and thresholding recoveries are evaluated without reading the filename or target label.",
+            "pipeline_steps": [
+                "Generate baseline plus six verified recovery candidates",
+                "Decode all seven candidates in one PARSeq batch",
+                "Filter implausible plate strings and select normalized confidence",
+            ],
+            "exact_acc": None,
+            "char_acc": None,
+            "delta_exact": None,
+            "images_per_second": None,
+            "samples": 0,
+            "is_baseline": False,
+            "benchmark_available": False,
+            "benchmark_split": None,
+            "benchmark_source": "wrong_images_controlled_recovery",
+            "kind": "recovery_selector",
+            "filter_group": "rl",
+            "available": True,
+            "unavailable_reason": None,
+            "experimental": True,
+            "experimental_label": "RECOVERY",
+            "catalog_badge": "RECOVERY",
+            "featured": True,
+            "composable": True,
+            "exclusive": True,
+            "comparison_eligible": False,
+        }
+    )
+
+    learned_definitions = {
+        "calibrated_candidate_selector": {
+            "display_name": "Calibrated Candidate Selector",
+            "topic": "Learned routing / calibrated 65-view selector",
+            "description": "A locked pairwise ranker groups 65 multi-scale OCR views into candidate strings and selects a calibrated result.",
+            "impact_reason": "Vote strength, calibrated confidence, view reliability, plate shape and image geometry are combined before switching away from consensus.",
+            "pipeline_steps": [
+                "Generate 65 resolution-aware OCR views",
+                "Aggregate duplicate candidate strings",
+                "Apply the locked calibrated pairwise selector",
+            ],
+            "kind": "learned_selector",
+            "experimental": False,
+        },
+        "contextual_bandit": {
+            "display_name": "Contextual Bandit",
+            "topic": "Reinforcement learning / Phase 4 one-step router",
+            "description": "A frozen offline reward router chooses one complete restoration action or safely keeps the baseline.",
+            "impact_reason": "The policy adapts restoration to image quality and OCR uncertainty while a learned gain margin allows abstention.",
+            "pipeline_steps": [
+                "Extract image-quality and PARSeq uncertainty context",
+                "Predict reward for 10 complete actions",
+                "Run the selected action or retain baseline",
+            ],
+            "kind": "rl_selector",
+            "experimental": True,
+        },
+        "two_stage_ppo": {
+            "display_name": "Two-stage PPO",
+            "topic": "Reinforcement learning / Phase 5 actor-critic PPO",
+            "description": "A teacher-guided actor-critic makes an initial restoration choice and may revise it in a second decision.",
+            "impact_reason": "The second stage can reconsider a weak first action using the intermediate OCR observation rather than committing immediately.",
+            "pipeline_steps": [
+                "Build baseline state and contextual-bandit teacher prior",
+                "Choose the first restoration action",
+                "Optionally revise the action after intermediate OCR",
+            ],
+            "kind": "rl_selector",
+            "experimental": True,
+        },
+        "auto_candidate_ppo": {
+            "display_name": "Auto Candidate PPO",
+            "topic": "Reinforcement learning / automatic top-20 policy",
+            "description": "The auto policy scores 20 complete compositional candidates and applies a teacher-guarded PPO selection.",
+            "impact_reason": "It evaluates complete candidate views jointly, including consensus between OCR strings, and falls back to the training baseline when gain is unsafe.",
+            "pipeline_steps": [
+                "Create the locked top-20 candidate views",
+                "Extract per-candidate visual and OCR consensus features",
+                "Select with candidate-set PPO and teacher safety guard",
+            ],
+            "kind": "rl_selector",
+            "experimental": True,
+        },
+    }
+    for name, definition in learned_definitions.items():
+        runtime = (learned_methods or {}).get(name, {})
+        available = bool(runtime.get("available", False))
+        samples = int(_number(runtime.get("samples")))
+        catalog.append(
+            {
+                "rank": len(catalog) + 1,
+                "name": name,
+                **definition,
+                "exact_acc": _optional_number(runtime.get("exact_acc")),
+                "char_acc": _optional_number(runtime.get("char_acc")),
+                "delta_exact": _optional_number(runtime.get("delta_exact")),
+                "images_per_second": None,
+                "samples": samples,
+                "is_baseline": False,
+                "benchmark_available": samples > 0 and runtime.get("exact_acc") is not None,
+                "benchmark_split": "locked test" if samples else None,
+                "benchmark_source": str(runtime.get("benchmark_source", "external_rl_pipeline")),
+                "filter_group": "rl",
+                "available": available,
+                "unavailable_reason": runtime.get("unavailable_reason"),
+                "composable": available,
+                "exclusive": True,
+                "comparison_eligible": False,
+            }
+        )
+
+    # Measured blocks lead the catalog by validation exact match, with
+    # character accuracy as a deterministic tie-breaker. Unmeasured blocks
+    # remain available after them without receiving an invented score.
+    catalog.sort(
+        key=lambda item: (
+            item.get("filter_group") != "imp",
+            not bool(item["benchmark_available"]),
+            -_number(item["exact_acc"]) if item["benchmark_available"] else 0.0,
+            -_number(item["char_acc"]) if item["benchmark_available"] else 0.0,
+            not bool(item["available"]),
+            int(item["rank"]),
+        )
+    )
+    for rank, item in enumerate(catalog, start=1):
+        item["rank"] = rank
     return catalog

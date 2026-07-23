@@ -1,0 +1,358 @@
+{
+  "config": {
+    "data_root": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset",
+    "dataset_sources": [
+      {
+        "name": "color_filtered",
+        "path": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset\\color_filtered",
+        "format": "color_filtered_labels_txt"
+      },
+      {
+        "name": "quandoi",
+        "path": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset\\update_label\\labled_quandoi",
+        "format": "collected_review_csv",
+        "plate_type": "quandoi"
+      },
+      {
+        "name": "ngoaigiao",
+        "path": "d:\\NEO\\LPR\\parseq_official_pipeline\\dataset\\update_label\\label_ngoaigiao",
+        "format": "collected_review_csv",
+        "plate_type": "ngoaigiao"
+      }
+    ],
+    "output_dir": "d:\\NEO\\LPR\\parseq_official_pipeline\\outputs\\refinement_finetune_20260721_144512",
+    "experiment": "parseq",
+    "pretrained": true,
+    "decode_ar": true,
+    "refine_iters": 1,
+    "charset_test": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "img_size": [
+      32,
+      128
+    ],
+    "max_label_length": 12,
+    "preprocess": true,
+    "augment": true,
+    "batch_size": 16,
+    "num_workers": 0,
+    "epochs": 30,
+    "lr": 1e-05,
+    "weight_decay": 0.0001,
+    "grad_clip": 20.0,
+    "seed": 42,
+    "amp": true,
+    "split_val_ratio": 0.1,
+    "split_test_ratio": 0.1,
+    "exclude_rejected_labels": true,
+    "balance_plate_types": true,
+    "excluded_plate_types": [
+      "normal"
+    ]
+  },
+  "best_checkpoint": "d:\\NEO\\LPR\\parseq_official_pipeline\\outputs\\refinement_finetune_20260721_144512\\best_official_parseq_anpr.pt",
+  "best_epoch": 26,
+  "best_val_metrics": {
+    "split": "val",
+    "samples": 400,
+    "exact_acc": 0.925,
+    "cer": 0.013930950938824955,
+    "char_acc": 0.9860690490611751,
+    "refine_iters": 1,
+    "decode_ar": true
+  },
+  "dataset_summary": [
+    {
+      "split": "test",
+      "plate_type": "blue",
+      "source_name": "color_filtered",
+      "samples": 1
+    },
+    {
+      "split": "test",
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 5
+    },
+    {
+      "split": "test",
+      "plate_type": "other",
+      "source_name": "color_filtered",
+      "samples": 358
+    },
+    {
+      "split": "test",
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 38
+    },
+    {
+      "split": "test",
+      "plate_type": "yellow",
+      "source_name": "color_filtered",
+      "samples": 12
+    },
+    {
+      "split": "train",
+      "plate_type": "blue",
+      "source_name": "color_filtered",
+      "samples": 1
+    },
+    {
+      "split": "train",
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 49
+    },
+    {
+      "split": "train",
+      "plate_type": "other",
+      "source_name": "color_filtered",
+      "samples": 2863
+    },
+    {
+      "split": "train",
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 279
+    },
+    {
+      "split": "train",
+      "plate_type": "yellow",
+      "source_name": "color_filtered",
+      "samples": 101
+    },
+    {
+      "split": "val",
+      "plate_type": "blue",
+      "source_name": "color_filtered",
+      "samples": 1
+    },
+    {
+      "split": "val",
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 3
+    },
+    {
+      "split": "val",
+      "plate_type": "other",
+      "source_name": "color_filtered",
+      "samples": 358
+    },
+    {
+      "split": "val",
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 26
+    },
+    {
+      "split": "val",
+      "plate_type": "yellow",
+      "source_name": "color_filtered",
+      "samples": 12
+    }
+  ],
+  "baseline_refinement_sweep_val": [
+    {
+      "split": "val_before_finetune_refine_0",
+      "samples": 400,
+      "exact_acc": 0.3325,
+      "cer": 0.33979406420351305,
+      "char_acc": 0.6602059357964869,
+      "refine_iters": 0,
+      "decode_ar": true
+    },
+    {
+      "split": "val_before_finetune_refine_1",
+      "samples": 400,
+      "exact_acc": 0.3275,
+      "cer": 0.33949121744397337,
+      "char_acc": 0.6605087825560266,
+      "refine_iters": 1,
+      "decode_ar": true
+    },
+    {
+      "split": "val_before_finetune_refine_2",
+      "samples": 400,
+      "exact_acc": 0.3275,
+      "cer": 0.3413082980012114,
+      "char_acc": 0.6586917019987886,
+      "refine_iters": 2,
+      "decode_ar": true
+    },
+    {
+      "split": "val_before_finetune_refine_3",
+      "samples": 400,
+      "exact_acc": 0.3275,
+      "cer": 0.34009691096305267,
+      "char_acc": 0.6599030890369473,
+      "refine_iters": 3,
+      "decode_ar": true
+    }
+  ],
+  "after_finetune_refinement_sweep_val": [
+    {
+      "split": "val_after_finetune_refine_0",
+      "samples": 400,
+      "exact_acc": 0.925,
+      "cer": 0.013628104179285281,
+      "char_acc": 0.9863718958207147,
+      "refine_iters": 0,
+      "decode_ar": true
+    },
+    {
+      "split": "val_after_finetune_refine_1",
+      "samples": 400,
+      "exact_acc": 0.925,
+      "cer": 0.013930950938824955,
+      "char_acc": 0.9860690490611751,
+      "refine_iters": 1,
+      "decode_ar": true
+    },
+    {
+      "split": "val_after_finetune_refine_2",
+      "samples": 400,
+      "exact_acc": 0.925,
+      "cer": 0.013628104179285281,
+      "char_acc": 0.9863718958207147,
+      "refine_iters": 2,
+      "decode_ar": true
+    },
+    {
+      "split": "val_after_finetune_refine_3",
+      "samples": 400,
+      "exact_acc": 0.925,
+      "cer": 0.013930950938824955,
+      "char_acc": 0.9860690490611751,
+      "refine_iters": 3,
+      "decode_ar": true
+    }
+  ],
+  "after_finetune_refinement_sweep_test": [
+    {
+      "split": "test_after_finetune_refine_0",
+      "samples": 414,
+      "exact_acc": 0.9130434782608695,
+      "cer": 0.014471352628470172,
+      "char_acc": 0.9855286473715298,
+      "refine_iters": 0,
+      "decode_ar": true
+    },
+    {
+      "split": "test_after_finetune_refine_1",
+      "samples": 414,
+      "exact_acc": 0.9154589371980676,
+      "cer": 0.01299468399291199,
+      "char_acc": 0.987005316007088,
+      "refine_iters": 1,
+      "decode_ar": true
+    },
+    {
+      "split": "test_after_finetune_refine_2",
+      "samples": 414,
+      "exact_acc": 0.9154589371980676,
+      "cer": 0.013290017720023627,
+      "char_acc": 0.9867099822799764,
+      "refine_iters": 2,
+      "decode_ar": true
+    },
+    {
+      "split": "test_after_finetune_refine_3",
+      "samples": 414,
+      "exact_acc": 0.9154589371980676,
+      "cer": 0.013290017720023627,
+      "char_acc": 0.9867099822799764,
+      "refine_iters": 3,
+      "decode_ar": true
+    }
+  ],
+  "val_by_plate_type": [
+    {
+      "plate_type": "blue",
+      "source_name": "color_filtered",
+      "samples": 1,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 3,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "other",
+      "source_name": "color_filtered",
+      "samples": 358,
+      "exact_acc": 0.9301675977653632,
+      "cer": 0.013266998341625208,
+      "char_acc": 0.9867330016583747
+    },
+    {
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 26,
+      "exact_acc": 0.8461538461538461,
+      "cer": 0.02564102564102564,
+      "char_acc": 0.9743589743589743
+    },
+    {
+      "plate_type": "yellow",
+      "source_name": "color_filtered",
+      "samples": 12,
+      "exact_acc": 0.9166666666666666,
+      "cer": 0.010309278350515464,
+      "char_acc": 0.9896907216494846
+    }
+  ],
+  "test_by_plate_type": [
+    {
+      "plate_type": "blue",
+      "source_name": "color_filtered",
+      "samples": 1,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "ngoaigiao",
+      "source_name": "ngoaigiao",
+      "samples": 5,
+      "exact_acc": 1.0,
+      "cer": 0.0,
+      "char_acc": 1.0
+    },
+    {
+      "plate_type": "other",
+      "source_name": "color_filtered",
+      "samples": 358,
+      "exact_acc": 0.9189944134078212,
+      "cer": 0.012948207171314742,
+      "char_acc": 0.9870517928286853
+    },
+    {
+      "plate_type": "quandoi",
+      "source_name": "quandoi",
+      "samples": 38,
+      "exact_acc": 0.868421052631579,
+      "cer": 0.035555555555555556,
+      "char_acc": 0.9644444444444444
+    },
+    {
+      "plate_type": "yellow",
+      "source_name": "color_filtered",
+      "samples": 12,
+      "exact_acc": 0.8333333333333334,
+      "cer": 0.020833333333333332,
+      "char_acc": 0.9791666666666666
+    }
+  ],
+  "wrong_eval": {
+    "val_count": 30,
+    "test_count": 36,
+    "image_dir": "d:\\NEO\\LPR\\parseq_official_pipeline\\outputs\\refinement_finetune_20260721_144512\\wrong_eval_images"
+  }
+}
