@@ -1,8 +1,6 @@
 
 # Improve ANPR accuracy of PARSeq model using calibrated candidate selector pipeline
 
-Phần reinforcement learning đã được tách sang project độc lập `D:\NEO\rl_pipeline`. Repository này chỉ còn giữ image-processing/PARSeq nền và các NTFS junction tương thích để absolute path trong audit RL lịch sử không bị hỏng.
-
 Pipeline nhận diện ký tự biển số xe Việt Nam bằng PARSeq chính thức, gồm fine-tune, đánh giá iterative refinement, thử nghiệm tiền xử lý ảnh, benchmark các mô hình enhancement dùng weight chính chủ và demo web inference.
 
 Mục tiêu của repo là kiểm tra các cách cải thiện `exact match` và `character accuracy` trước khi đưa ảnh vào PARSeq, đồng thời giữ quy trình đánh giá tách bạch giữa validation và test.
