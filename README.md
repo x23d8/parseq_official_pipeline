@@ -1,5 +1,5 @@
 ---
-title: PARSeq Vietnamese ANPR Demo
+title: Improve ANPR accuracy of PARSeq model using calibrated candidate selector
 emoji: 🚘
 colorFrom: indigo
 colorTo: blue
